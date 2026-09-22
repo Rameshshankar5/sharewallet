@@ -16,6 +16,7 @@ import { Banner } from '../../../components/Banner';
 import { ListRow } from '../../../components/ListRow';
 import { SectionHeader } from '../../../components/SectionHeader';
 import { EmptyState } from '../../../components/EmptyState';
+import { ResetRequests } from '../../../components/ResetRequests';
 import type { UserProfile } from '../../../types';
 
 export default function AdminUsersScreen() {
@@ -91,6 +92,8 @@ export default function AdminUsersScreen() {
           onPress={() => router.push('/admin/new-user')}
           full
         />
+
+        <ResetRequests admin={me} />
 
         <View>
           <SectionHeader title="Members" />

@@ -12,6 +12,7 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { Banner } from '../components/Banner';
 import { Illustration } from '../components/Illustration';
+import { ForgotPasswordSheet } from '../components/ForgotPasswordSheet';
 
 export default function LoginScreen() {
   const { signIn, error, clearError } = useAuth();
@@ -22,6 +23,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const emailError = touched.email && !email.trim() ? 'Enter your email address.' : null;
   const passwordError = touched.password && !password ? 'Enter your password.' : null;
@@ -105,6 +107,13 @@ export default function LoginScreen() {
             />
 
             <Button label="Sign in" onPress={submit} loading={busy} full />
+
+            <Button
+              label="Forgotten your password?"
+              variant="ghost"
+              onPress={() => setForgotOpen(true)}
+              full
+            />
           </View>
 
           <View style={[styles.note, { borderTopColor: c.border }, keyboardUp && styles.hidden]}>
@@ -114,6 +123,12 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ForgotPasswordSheet
+        visible={forgotOpen}
+        initialEmail={email}
+        onClose={() => setForgotOpen(false)}
+      />
     </Screen>
   );
 }

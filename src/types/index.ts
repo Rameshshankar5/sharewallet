@@ -123,3 +123,21 @@ export interface AuditEntry {
   changes: ChangeLine[];
   viewerIds: string[];
 }
+
+/**
+ * Someone locked out, asking to be let back in.
+ *
+ * The document ID is the lowercased email, deliberately: a person who cannot
+ * sign in has to be able to write this while signed out, and keying it by
+ * address means tapping "Forgot password?" five times leaves one row instead
+ * of five. That bounds what the one open write path can accumulate.
+ */
+export interface ResetRequest {
+  /** The lowercased email, which is also the document ID. */
+  id: string;
+  email: string;
+  requestedAt: number;
+  status: 'pending' | 'approved' | 'dismissed';
+  handledBy: string | null;
+  handledAt: number | null;
+}

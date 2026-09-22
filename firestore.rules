@@ -145,6 +145,48 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ------------------------------------------------------- reset requests
+    //
+    // The one place an unauthenticated write is allowed, and it has to be:
+    // somebody who has forgotten their password cannot sign in to ask for a
+    // new one. Everything about the shape is pinned so the opening is as
+    // narrow as it can be.
+    //
+    //   * The document ID is the email, so one person leaves one row however
+    //     many times they tap. That is what stops this becoming unbounded.
+    //   * Only these five fields, only `pending`, and unhandled — nobody can
+    //     write themselves an approval.
+    //   * No read. Being able to list this collection would turn the login
+    //     screen into a way to find out who is in the group.
+    //
+    // What it still allows: writing junk rows for addresses nobody owns. They
+    // cost nothing, grant nothing, and the superadmin dismisses them. Closing
+    // that off entirely needs a server to rate-limit, which this project
+    // deliberately does not have.
+    match /resetRequests/{emailId} {
+      allow read: if isAdmin();
+
+      allow create, update: if request.resource.data.keys()
+            .hasOnly(['email', 'requestedAt', 'status', 'handledBy', 'handledAt'])
+        && request.resource.data.email == emailId
+        && request.resource.data.email is string
+        && request.resource.data.email.size() < 200
+        && request.resource.data.email
+            .matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+[.][a-zA-Z]{2,}$')
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedAt is int
+        && request.resource.data.handledBy == null
+        && request.resource.data.handledAt == null;
+
+      // Handling one is the admin's alone, and cannot rewrite who asked.
+      allow update: if isAdmin()
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.status in ['approved', 'dismissed']
+        && request.resource.data.handledBy == uid();
+
+      allow delete: if isAdmin();
+    }
+
     // --------------------------------------------------------------- audit
     //
     // Append-only. This is the guarantee that makes "who changed what"

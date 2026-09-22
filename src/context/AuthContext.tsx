@@ -6,6 +6,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { onSnapshot } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, isConfigured } from '../firebase';
 import { userDoc } from '../services/collections';
 import type { UserProfile } from '../types';
@@ -68,6 +69,32 @@ interface ProfileSnapshot {
 
 const NO_PROFILE: ProfileSnapshot = { uid: null, profile: null, loaded: false };
 
+const profileKey = (uid: string) => `sharewallet.profile.${uid}`;
+
+/**
+ * The last profile seen for this account, kept on the phone.
+ *
+ * Without it, every launch sits on "Signing you in…" until a Firestore round
+ * trip completes — the session itself is restored locally and instantly, so
+ * that wait is entirely the profile fetch. Seeding from the cache lets the app
+ * open at once and reconcile a moment later when the live snapshot lands.
+ *
+ * This cannot be used to get in somewhere you should not be: firestore.rules
+ * decide every read and write on the server, so a stale cached role or a
+ * revoked account grants nothing. The worst it can do is show a stale name for
+ * the moment before the real profile arrives.
+ */
+async function readCachedProfile(uid: string): Promise<UserProfile | null> {
+  try {
+    const raw = await AsyncStorage.getItem(profileKey(uid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UserProfile;
+    return parsed?.uid === uid ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // When Firebase isn't configured there will never be a callback, so start
   // resolved rather than hanging on the splash screen forever.
@@ -89,14 +116,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const uid = session.user?.uid;
     if (!uid) return;
+
+    let cancelled = false;
+
+    // Open on what we already knew, rather than on a spinner. If the live
+    // snapshot wins the race this is discarded untouched.
+    void readCachedProfile(uid).then((cached) => {
+      if (cancelled || !cached) return;
+      setSnapshot((prev) => (prev.uid === uid && prev.loaded
+        ? prev
+        : { uid, profile: cached, loaded: true }));
+    });
+
     return onSnapshot(
       userDoc(uid),
-      (snap) => setSnapshot({
-        uid,
-        profile: snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null,
-        loaded: true,
-      }),
-      () => setSnapshot({ uid, profile: null, loaded: true }),
+      (snap) => {
+        const profile = snap.exists()
+          ? ({ uid: snap.id, ...snap.data() } as UserProfile)
+          : null;
+        setSnapshot({ uid, profile, loaded: true });
+        // Keep the cache honest, including removing it for an account whose
+        // profile has gone, so the next launch does not open on a ghost.
+        void (profile
+          ? AsyncStorage.setItem(profileKey(uid), JSON.stringify(profile))
+          : AsyncStorage.removeItem(profileKey(uid))
+        ).catch(() => {});
+      },
+      // An error here means we could not reach Firestore, not that the profile
+      // is gone. Keep whatever the cache gave us instead of ejecting someone
+      // from an app that was working a second ago.
+      () => setSnapshot((prev) => (prev.uid === uid && prev.loaded
+        ? prev
+        : { uid, profile: null, loaded: true })),
     );
   }, [session.user]);
 
@@ -133,7 +184,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw e;
       }
     },
-    signOut: async () => { await fbSignOut(auth()); },
+    signOut: async () => {
+      // Drop the cached profile first: signing out then failing to clear it
+      // would let the next launch open straight into the old account's shell.
+      const uid = session.user?.uid;
+      if (uid) await AsyncStorage.removeItem(profileKey(uid)).catch(() => {});
+      await fbSignOut(auth());
+    },
   }), [status, session.user, profile, error]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
