@@ -2,7 +2,7 @@
   "expo": {
     "name": "1-1-1",
     "slug": "sharewallet",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sharewallet",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.sharewallet.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"
@@ -48,8 +48,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "ShareWallet uses your photos so you can attach a receipt to an expense.",
-          "cameraPermission": "ShareWallet uses the camera so you can photograph a receipt."
+          "photosPermission": "ShareWallet needs your photos so you can attach a receipt to an expense or set your profile picture.",
+          "cameraPermission": "ShareWallet needs the camera so you can photograph a receipt or take your profile picture."
         }
       ]
     ],
