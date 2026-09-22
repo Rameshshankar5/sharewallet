@@ -580,7 +580,6 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
               <ReceiptField
                 value={receiptUrl}
                 onChange={setReceiptUrl}
-                busy={uploading}
                 onBusyChange={setUploading}
                 onError={setFormError}
               />

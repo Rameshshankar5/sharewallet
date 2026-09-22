@@ -7,14 +7,15 @@ import { presetFor, uploadEndpoint } from '../lib/cloudinaryConfig';
 
 /** How wide an image is allowed to arrive at Cloudinary, per kind. */
 const MAX_WIDTH: Record<ImageKind, number> = {
-  // Square and small; the preset caps it again at 512.
-  avatar: 768,
+  // The preset caps avatars at 512, so anything wider is bytes uploaded only
+  // to be thrown away at the other end.
+  avatar: 512,
   // A receipt is only useful if the printed text survives. 1600 keeps it
   // readable and still lands a few hundred KB.
   receipt: 1600,
 };
 
-const QUALITY: Record<ImageKind, number> = { avatar: 0.7, receipt: 0.75 };
+const QUALITY: Record<ImageKind, number> = { avatar: 0.7, receipt: 0.68 };
 
 export type PickSource = 'camera' | 'library';
 
@@ -101,7 +102,11 @@ interface CloudinaryResponse {
  * The preset decides the folder and the size cap; the app cannot widen either,
  * which is the point — nothing secret has to ship in the APK for this to work.
  */
-export async function uploadImage(localUri: string, kind: ImageKind): Promise<string> {
+export async function uploadImage(
+  localUri: string,
+  kind: ImageKind,
+  onProgress?: (fraction: number) => void,
+): Promise<string> {
   const preset = presetFor(kind);
   if (!preset) throw new ImageError('Image uploads are not configured in this build.');
 
@@ -115,6 +120,9 @@ export async function uploadImage(localUri: string, kind: ImageKind): Promise<st
       fieldName: 'file',
       mimeType: 'image/jpeg',
       parameters: { upload_preset: preset },
+      onProgress: ({ bytesSent, totalBytes }) => {
+        if (totalBytes > 0) onProgress?.(Math.min(1, bytesSent / totalBytes));
+      },
     });
   } catch (e) {
     // Carry the underlying reason. "Check your connection" sent someone
@@ -141,8 +149,12 @@ export async function uploadImage(localUri: string, kind: ImageKind): Promise<st
 }
 
 /** Pick and upload in one go. Null means they cancelled the picker. */
-export async function pickAndUpload(source: PickSource, kind: ImageKind): Promise<string | null> {
+export async function pickAndUpload(
+  source: PickSource,
+  kind: ImageKind,
+  onProgress?: (fraction: number) => void,
+): Promise<string | null> {
   const local = await pickImage(source, kind);
   if (!local) return null;
-  return uploadImage(local, kind);
+  return uploadImage(local, kind, onProgress);
 }

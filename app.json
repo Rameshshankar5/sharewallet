@@ -2,7 +2,7 @@
   "expo": {
     "name": "1-1-1",
     "slug": "sharewallet",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sharewallet",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.sharewallet.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"
@@ -39,9 +39,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#F5F7FB",
+          "backgroundColor": "#6295B0",
           "dark": {
-            "backgroundColor": "#0F172A"
+            "backgroundColor": "#184D7C"
           }
         }
       ],

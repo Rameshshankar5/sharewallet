@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -19,7 +19,7 @@ import { SectionHeader } from '../../../components/SectionHeader';
 import { Button } from '../../../components/Button';
 import { Banner } from '../../../components/Banner';
 import { SegmentedControl } from '../../../components/SegmentedControl';
-import { chooseAndUploadImage } from '../../../components/ImagePickerSheet';
+import { usePhotoPicker } from '../../../components/usePhotoPicker';
 import { imagesConfigured } from '../../../lib/cloudinaryConfig';
 import { setOwnPhoto } from '../../../services/users';
 
@@ -28,7 +28,6 @@ export default function AccountScreen() {
   const { users, expenses } = useData();
   const { c, isDark, preference, setPreference } = useTheme();
   const [copied, setCopied] = useState(false);
-  const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   const me = profile!;
@@ -45,7 +44,7 @@ export default function AccountScreen() {
     );
   };
 
-  const savePhoto = async (url: string | null) => {
+  const savePhoto = useCallback(async (url: string | null) => {
     setPhotoError(null);
     try {
       await setOwnPhoto(me, url);
@@ -55,18 +54,14 @@ export default function AccountScreen() {
       // succeed.
       setPhotoError('The photo uploaded but could not be saved to your profile. Try again.');
     }
-  };
+  }, [me]);
 
-  const changePhoto = () => {
-    chooseAndUploadImage({
-      kind: 'avatar',
-      title: me.photoUrl ? 'Change your picture' : 'Add a picture',
-      onRemove: me.photoUrl ? () => { void savePhoto(null); } : undefined,
-      onPicked: (url) => { void savePhoto(url); },
-      onError: setPhotoError,
-      onBusyChange: setPhotoBusy,
-    });
-  };
+  const photo = usePhotoPicker({
+    kind: 'avatar',
+    value: me.photoUrl,
+    onChange: (url) => { void savePhoto(url); },
+    onError: setPhotoError,
+  });
 
   const copyEmail = async () => {
     await Clipboard.setStringAsync(me.email);
@@ -82,15 +77,15 @@ export default function AccountScreen() {
         <Card style={styles.profileCard}>
           {imagesConfigured ? (
             <Pressable
-              onPress={changePhoto}
-              disabled={photoBusy}
+              onPress={photo.open}
+              disabled={photo.busy}
               accessibilityRole="button"
               accessibilityLabel={me.photoUrl ? 'Change your profile picture' : 'Add a profile picture'}
-              style={({ pressed }) => ({ opacity: pressed || photoBusy ? 0.6 : 1 })}
+              style={({ pressed }) => ({ opacity: pressed || photo.busy ? 0.6 : 1 })}
             >
               <Avatar uid={me.uid} name={me.displayName} size={64} />
               <View style={[styles.cameraBadge, { backgroundColor: c.primary, borderColor: c.card }]}>
-                {photoBusy
+                {photo.busy
                   ? <ActivityIndicator size="small" color={c.onPrimary} />
                   : <Camera size={13} color={c.onPrimary} strokeWidth={2.6} />}
               </View>
@@ -198,6 +193,7 @@ export default function AccountScreen() {
           {APP_NAME} · private build for you and your friends
         </Text>
       </ScrollView>
+      {photo.sheet}
     </Screen>
   );
 }
