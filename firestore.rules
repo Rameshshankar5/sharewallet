@@ -68,8 +68,12 @@ service cloud.firestore {
       // themselves, or set their own picture. Role and active status stay in
       // the admin's hands — and `photoUrl` is scoped to your own document, so
       // nobody can put a picture on someone else's profile.
+      // `pushTokens` is here because a phone has to register itself, and only
+      // ever on its owner's document — nobody can point another person's
+      // notifications at a device of their choosing.
       allow update: if isAdmin()
-        || (uid() == userId && changedOnly(['mustChangePassword', 'displayName', 'photoUrl']));
+        || (uid() == userId
+            && changedOnly(['mustChangePassword', 'displayName', 'photoUrl', 'pushTokens']));
 
       // Deleting a profile would orphan that person's share of past expenses.
       // Pause the account instead (active: false).

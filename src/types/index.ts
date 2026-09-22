@@ -12,6 +12,12 @@ export interface UserProfile {
    * initials. Stored as a plain URL: the image itself is not in Firestore.
    */
   photoUrl: string | null;
+  /**
+   * Expo push tokens, one per device this person is signed in on. An array
+   * because a notification that only reaches whichever phone registered last
+   * is worse than none at all.
+   */
+  pushTokens: string[];
   active: boolean;
   /** Set when the superadmin creates the account; cleared once they pick their own. */
   mustChangePassword: boolean;

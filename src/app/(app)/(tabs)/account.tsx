@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } fro
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import {
-  Camera, Copy, KeyRound, LogOut, Moon, ShieldCheck, Smartphone, Sun, Users2,
+  Bell, BellOff, Camera, Copy, KeyRound, LogOut, Moon, ShieldCheck, Smartphone, Sun, Users2,
 } from 'lucide-react-native';
 import { useAuth } from '../../../context/AuthContext';
 import { useData } from '../../../context/DataContext';
@@ -23,6 +23,7 @@ import { SegmentedControl } from '../../../components/SegmentedControl';
 import { usePhotoPicker } from '../../../components/usePhotoPicker';
 import { imagesConfigured } from '../../../lib/cloudinaryConfig';
 import { setOwnPhoto } from '../../../services/users';
+import { pushConfigured, registerForPush } from '../../../services/push';
 
 export default function AccountScreen() {
   const { profile, signOut } = useAuth();
@@ -30,6 +31,8 @@ export default function AccountScreen() {
   const { c, isDark, preference, setPreference } = useTheme();
   const [copied, setCopied] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushNote, setPushNote] = useState<string | null>(null);
 
   const me = profile!;
   const isAdmin = me.role === 'superadmin';
@@ -63,6 +66,28 @@ export default function AccountScreen() {
     onChange: (url) => { void savePhoto(url); },
     onError: setPhotoError,
   });
+
+  // Tokens live on the profile, so "is this phone registered" is answered by
+  // the profile itself rather than by a second source that can disagree.
+  const notifyOn = (me.pushTokens ?? []).length > 0;
+
+  const enableNotifications = () => {
+    setPushBusy(true);
+    setPushNote(null);
+    void registerForPush(me.uid)
+      .then((result) => {
+        if (result === 'denied') {
+          setPushNote(
+            'Android is blocking notifications for this app. Turn them on in your '
+            + 'phone settings, then come back.',
+          );
+        } else if (result === 'unsupported') {
+          setPushNote('This build cannot receive notifications.');
+        }
+      })
+      .catch(() => setPushNote('Could not turn notifications on. Try again.'))
+      .finally(() => setPushBusy(false));
+  };
 
   const copyEmail = async () => {
     await Clipboard.setStringAsync(me.email);
@@ -114,6 +139,10 @@ export default function AccountScreen() {
           <Banner tone="error" title="Picture not changed" message={photoError} />
         ) : null}
 
+        {pushNote ? (
+          <Banner tone="warning" title="Notifications" message={pushNote} />
+        ) : null}
+
         <View style={styles.section}>
           <SectionHeader title="Your group" />
           <Card flush>
@@ -157,6 +186,27 @@ export default function AccountScreen() {
               divider
               onPress={() => router.push('/settings/password')}
             />
+            {pushConfigured ? (
+              <ListRow
+                leading={
+                  notifyOn
+                    ? <Bell size={20} color={c.positive} strokeWidth={2.2} />
+                    : <BellOff size={20} color={c.textMuted} strokeWidth={2.2} />
+                }
+                title="Notifications"
+                subtitle={
+                  pushBusy
+                    ? 'Turning them on\u2026'
+                    : notifyOn
+                      ? 'On for this phone — you will be told when an expense involves you.'
+                      : 'Off for this phone. Turn them on to hear about new expenses.'
+                }
+                divider
+                onPress={notifyOn || pushBusy ? undefined : enableNotifications}
+                chevron={!notifyOn && !pushBusy}
+              />
+            ) : null}
+
             <ListRow
               leading={
                 isDark

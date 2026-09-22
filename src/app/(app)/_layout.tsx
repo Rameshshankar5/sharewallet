@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Loading } from '../../components/Loading';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 
 /**
  * The gate for every signed-in screen.
@@ -19,6 +20,9 @@ import { Loading } from '../../components/Loading';
 export default function AppLayout() {
   const { status, profile } = useAuth();
   const { c } = useTheme();
+
+  // Mounted above the early return's guard so the hook order never changes.
+  usePushNotifications(status === 'ready' && profile ? profile.uid : null);
 
   if (status !== 'ready' || !profile) return <Loading />;
 

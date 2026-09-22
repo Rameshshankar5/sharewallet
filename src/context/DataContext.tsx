@@ -77,8 +77,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // Rows written before a field existed read as the absence of it,
         // not as undefined — every consumer can then treat them alike.
         users: snap.docs.map((d) => ({
-          uid: d.id, photoUrl: null, ...d.data(),
-        } as UserProfile)),
+          uid: d.id, photoUrl: null, pushTokens: [], ...d.data(),
+        } as unknown as UserProfile)),
         ready: { users: true } as Store['ready'],
       })),
 

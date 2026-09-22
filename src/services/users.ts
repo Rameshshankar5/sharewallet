@@ -56,6 +56,7 @@ export async function createMemberAccount(
       displayName: input.displayName.trim(),
       role: input.role,
       photoUrl: null,
+      pushTokens: [],
       active: true,
       mustChangePassword: true,
       createdAt: Date.now(),

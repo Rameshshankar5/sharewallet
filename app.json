@@ -23,7 +23,8 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -50,6 +51,14 @@
         {
           "photosPermission": "ShareWallet needs your photos so you can attach a receipt to an expense or set your profile picture.",
           "cameraPermission": "ShareWallet needs the camera so you can photograph a receipt or take your profile picture."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#0942A6",
+          "defaultChannel": "expenses"
         }
       ]
     ],

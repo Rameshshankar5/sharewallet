@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { onSnapshot } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { unregisterFromPush } from '../services/push';
 import { auth, isConfigured } from '../firebase';
 import { userDoc } from '../services/collections';
 import type { UserProfile } from '../types';
@@ -185,10 +186,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     signOut: async () => {
-      // Drop the cached profile first: signing out then failing to clear it
-      // would let the next launch open straight into the old account's shell.
+      // Drop this device's push token and the cached profile first: signing
+      // out then failing to clear either would leave the next launch opening
+      // into the old account's shell, and this phone still receiving that
+      // account's expenses.
       const uid = session.user?.uid;
-      if (uid) await AsyncStorage.removeItem(profileKey(uid)).catch(() => {});
+      if (uid) {
+        await unregisterFromPush(uid);
+        await AsyncStorage.removeItem(profileKey(uid)).catch(() => {});
+      }
       await fbSignOut(auth());
     },
   }), [status, session.user, profile, error]);

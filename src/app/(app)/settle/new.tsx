@@ -9,6 +9,7 @@ import { radius, space } from '../../../theme/tokens';
 import { CURRENCY_SYMBOL, centsToInput, formatMoney, parseAmount } from '../../../lib/money';
 import { buildRoomLedger } from '../../../lib/balance';
 import { recordSettlement } from '../../../services/settlements';
+import { notifySettlement } from '../../../services/notify';
 import { Screen } from '../../../components/Screen';
 import { AppBar } from '../../../components/AppBar';
 import { Text } from '../../../components/Text';
@@ -32,7 +33,7 @@ export default function SettleScreen() {
     with?: string; amount?: string; roomId?: string; dir?: Direction;
   }>();
   const { profile } = useAuth();
-  const { friends, ledger, nameOf, rooms, expenses, settlements } = useData();
+  const { friends, ledger, nameOf, rooms, expenses, settlements, usersById, roomNameOf } = useData();
   const { c } = useTheme();
 
   const me = profile!.uid;
@@ -107,11 +108,13 @@ export default function SettleScreen() {
     if (!canSave) return;
     setSaving(true);
     try {
-      await recordSettlement(
+      const id = await recordSettlement(
         { roomId, fromUid, toUid, amount, note, date, alsoVisibleTo },
         profile!,
         nameOf,
       );
+      notifySettlement({ fromUid, toUid, amount, roomId }, id, profile!, usersById,
+        (rid) => (rid ? roomNameOf(rid) : null));
       router.back();
     } catch (e) {
       setError((e as Error).message || 'Could not record the payment.');

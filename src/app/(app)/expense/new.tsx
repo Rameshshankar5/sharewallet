@@ -31,6 +31,7 @@ import { AmountRow } from '../../../components/AmountRow';
 import { DateField } from '../../../components/DateField';
 import { ReceiptField } from '../../../components/ReceiptField';
 import { imagesConfigured } from '../../../lib/cloudinaryConfig';
+import { notifyExpense } from '../../../services/notify';
 import { Loading } from '../../../components/Loading';
 import { CATEGORIES } from '../../../components/icons';
 import type { Expense, ExpenseCategory } from '../../../types';
@@ -70,7 +71,7 @@ export default function ExpenseFormScreen() {
 
 function ExpenseForm({ existing, params }: { existing?: Expense; params: Params }) {
   const { profile } = useAuth();
-  const { rooms, users, nameOf, roomNameOf } = useData();
+  const { rooms, users, usersById, nameOf, roomNameOf } = useData();
   const { c } = useTheme();
 
   const me = profile!.uid;
@@ -273,10 +274,21 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
         roomId, date, splitMode, receiptUrl,
       };
 
+      // Notified after the write, never before: telling people about an
+      // expense that then failed to save is worse than not telling them.
+      const participantIds = Array.from(new Set([
+        ...Object.keys(payerCents), ...Object.keys(splitCents),
+      ]));
+      const notice = { ...payload, participantIds };
+
       if (editing && existing) {
         await updateExpense(existing.id, existing.version, payload, profile!, nameOf, roomNameOf);
+        notifyExpense(notice, existing.id, 'updated', profile!, usersById,
+          (id) => (id ? roomNameOf(id) : null));
       } else {
-        await createExpense(payload, profile!, nameOf);
+        const id = await createExpense(payload, profile!, nameOf);
+        notifyExpense(notice, id, 'created', profile!, usersById,
+          (rid) => (rid ? roomNameOf(rid) : null));
       }
       router.back();
     } catch (e) {

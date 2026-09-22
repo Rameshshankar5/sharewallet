@@ -256,3 +256,85 @@ test('receipts are fitted, never cropped', () => {
   assert.ok(!thumb.includes('c_fill'));
   assert.ok(receiptFullUrl(UPLOADED).includes('f_auto,q_auto'));
 });
+
+/**
+ * Notification wording. The part most likely to be quietly wrong for months,
+ * because nobody reads their own notifications critically.
+ */
+const {
+  expenseMessages, settlementMessages, chunkMessages, isExpoPushToken,
+} = require('../.math-build/pushMessages');
+
+const NOTICE = {
+  expenseId: 'e1', description: 'Tv', actorName: 'Ramesh',
+  roomName: null, kind: 'created',
+};
+
+test('a notification says what the expense means for the person reading it', () => {
+  const [owes] = expenseMessages(NOTICE, [
+    { uid: 'thuva', tokens: ['ExponentPushToken[a]'], share: 250000, paid: 0 },
+  ]);
+  assert.equal(owes.title, 'Ramesh added an expense');
+  assert.equal(owes.body, 'Tv — your share is Rs 2,500.00');
+
+  const [owed] = expenseMessages(NOTICE, [
+    { uid: 'kasun', tokens: ['ExponentPushToken[b]'], share: 100000, paid: 400000 },
+  ]);
+  assert.equal(owed.body, 'Tv — you are owed Rs 3,000.00');
+});
+
+test('the room is named when there is one', () => {
+  const [m] = expenseMessages({ ...NOTICE, roomName: '1-1-1' }, [
+    { uid: 'thuva', tokens: ['ExponentPushToken[a]'], share: 100, paid: 0 },
+  ]);
+  assert.equal(m.title, 'Ramesh added an expense in 1-1-1');
+});
+
+test('an edit is not announced as a new expense', () => {
+  const [m] = expenseMessages({ ...NOTICE, kind: 'updated' }, [
+    { uid: 'thuva', tokens: ['ExponentPushToken[a]'], share: 100, paid: 0 },
+  ]);
+  assert.equal(m.title, 'Ramesh changed an expense');
+});
+
+test('nobody is pinged about money that does not move for them', () => {
+  // Not a participant in any meaningful sense — no share, nothing paid.
+  const messages = expenseMessages(NOTICE, [
+    { uid: 'nimal', tokens: ['ExponentPushToken[c]'], share: 0, paid: 0 },
+  ]);
+  assert.equal(messages.length, 0);
+});
+
+test('one message per device, so a second phone is not left out', () => {
+  const messages = expenseMessages(NOTICE, [
+    { uid: 'thuva', tokens: ['ExponentPushToken[a]', 'ExponentPushToken[b]'], share: 500, paid: 0 },
+  ]);
+  assert.equal(messages.length, 2);
+  assert.deepEqual(messages.map((m) => m.to), ['ExponentPushToken[a]', 'ExponentPushToken[b]']);
+});
+
+test('a settlement tells the receiver who paid them', () => {
+  const [m] = settlementMessages(
+    { settlementId: 's1', payerName: 'Thuva', amount: 50000, roomName: null },
+    ['ExponentPushToken[a]'],
+  );
+  assert.equal(m.body, 'Thuva paid you Rs 500.00');
+  assert.equal(m.data.settlementId, 's1');
+});
+
+test('sending is chunked to Expo’s limit, losing nothing', () => {
+  const many = Array.from({ length: 250 }, (_, i) => ({
+    to: `ExponentPushToken[${i}]`, title: 't', body: 'b', data: {},
+  }));
+  const chunks = chunkMessages(many);
+  assert.deepEqual(chunks.map((c) => c.length), [100, 100, 50]);
+  assert.equal(chunks.flat().length, 250, 'no message dropped');
+});
+
+test('only real Expo tokens are treated as sendable', () => {
+  assert.ok(isExpoPushToken('ExponentPushToken[abc123]'));
+  assert.ok(isExpoPushToken('ExpoPushToken[abc123]'));
+  assert.ok(!isExpoPushToken('abc123'));
+  assert.ok(!isExpoPushToken(null));
+  assert.ok(!isExpoPushToken(''));
+});
