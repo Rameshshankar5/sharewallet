@@ -36,6 +36,7 @@ export default function AppLayout() {
       <Stack.Screen name="settle/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="room/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="admin/new-user" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="settings/password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
     </Stack>
   );
 }

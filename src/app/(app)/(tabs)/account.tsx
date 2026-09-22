@@ -110,7 +110,7 @@ export default function AccountScreen() {
               title="Change password"
               chevron
               divider
-              onPress={() => router.push('/change-password')}
+              onPress={() => router.push('/settings/password')}
             />
             <ListRow
               leading={
