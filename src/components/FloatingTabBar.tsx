@@ -10,14 +10,22 @@ import { useTheme } from '../theme/ThemeProvider';
 import { radius, space, font } from '../theme/tokens';
 import { Text } from './Text';
 
-const BAR_HEIGHT = 68;
-/** Diameter of the travelling indicator that carries the active icon. */
-const INDICATOR = 56;
-/** How far the indicator's centre sits above the bar's top edge. */
-const RISE = 26;
+const BAR_HEIGHT = 64;
+const INDICATOR = 54;
+const ICON_SIZE = 23;
 const SIDE_MARGIN = space.lg;
 
-/** A spring, not a duration: the indicator should settle, not stop dead. */
+/**
+ * Vertical geometry, all measured up from the bottom of the bar so the numbers
+ * can be checked against each other instead of tuned by eye.
+ */
+/** Where a resting icon sits. */
+const ICON_REST_Y = 32;
+/** Where the indicator's centre sits — above the bar's top edge. */
+const INDICATOR_Y = BAR_HEIGHT - 4;
+/** Room above the bar for the part of the indicator that escapes it. */
+const OVERHANG = INDICATOR / 2 + 6;
+
 const SPRING = { damping: 17, stiffness: 165, mass: 0.9 };
 
 interface ItemProps {
@@ -34,20 +42,19 @@ function TabItem({
 }: ItemProps) {
   const { c } = useTheme();
 
-  const progress = useDerivedValue(
-    () => withSpring(focused ? 1 : 0, SPRING),
-    [focused],
-  );
+  const progress = useDerivedValue(() => withSpring(focused ? 1 : 0, SPRING), [focused]);
 
-  // The icon rides up into the indicator, which is travelling to meet it.
-  const iconStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -(RISE + 4) * progress.value }],
+  // The resting icon fades out as the indicator arrives, because the indicator
+  // carries its own copy of the icon. Two icons briefly crossing looks like a
+  // glitch; one handing over to the other does not.
+  const restingIconStyle = useAnimatedStyle(() => ({
+    opacity: 1 - progress.value,
+    transform: [{ translateY: -10 * progress.value }],
   }));
 
-  // The label only exists for the selected tab, and fades up from under it.
   const labelStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(focused ? 1 : 0, { duration: 180 }),
-    transform: [{ translateY: (1 - progress.value) * 8 }],
+    opacity: withTiming(focused ? 1 : 0, { duration: 170 }),
+    transform: [{ translateY: (1 - progress.value) * 6 }],
   }));
 
   return (
@@ -56,17 +63,13 @@ function TabItem({
       onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityState={{ selected: focused }}
-      // The label is invisible when inactive, so the name has to be spoken here
+      // Only the selected tab shows a label, so the name has to be spoken here
       // or three of the four tabs are unlabelled to a screen reader.
       accessibilityLabel={accessibilityLabel}
       style={styles.item}
     >
-      <Animated.View style={iconStyle}>
-        <Icon
-          size={23}
-          color={focused ? c.onPrimary : c.textMuted}
-          strokeWidth={focused ? 2.5 : 2.1}
-        />
+      <Animated.View style={[styles.restingIcon, restingIconStyle]} pointerEvents="none">
+        <Icon size={ICON_SIZE} color={c.textMuted} strokeWidth={2.1} />
       </Animated.View>
 
       <Animated.View style={[styles.labelSlot, labelStyle]} pointerEvents="none">
@@ -83,17 +86,14 @@ function TabItem({
 }
 
 /**
- * A floating bar with a single indicator that slides between tabs, the active
- * icon riding inside it.
+ * A floating bar with one indicator that slides between tabs, the active icon
+ * riding inside it.
  *
- * One moving piece rather than four independent ones: the eye follows the
- * indicator from where it was to where it is now, so the change of screen has
- * somewhere to come from. Only the selected tab is labelled — with four
- * destinations the indicator says which, and four permanent labels under four
- * icons is more ink than the question needs.
- *
- * Built by hand rather than restyling the stock bar, which clips anything
- * leaving its bounds and so cannot let the indicator rise above its edge.
+ * The icon is a child of the indicator rather than of the tab. On Android the
+ * indicator needs an elevation to sit above the bar, and elevation also puts
+ * it above anything drawn beside it — so an icon left in the tab underneath
+ * disappeared behind the disc. Nesting it makes the two impossible to
+ * misalign, and impossible to stack in the wrong order.
  */
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { c } = useTheme();
@@ -101,19 +101,18 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const { width } = useWindowDimensions();
 
   const count = state.routes.length;
-  const barWidth = width - SIDE_MARGIN * 2;
-  const slot = barWidth / count;
+  const slot = (width - SIDE_MARGIN * 2) / count;
 
-  // Driven by the navigation state rather than by taps, so the indicator
-  // follows a back gesture or a deep link just as it follows a press.
+  // Driven by the navigation state, not by taps, so the indicator follows a
+  // back gesture or a deep link just as it follows a press.
   const indicatorStyle = useAnimatedStyle(() => ({
     transform: [{
-      translateX: withSpring(
-        state.index * slot + slot / 2 - INDICATOR / 2,
-        SPRING,
-      ),
+      translateX: withSpring(state.index * slot + slot / 2 - INDICATOR / 2, SPRING),
     }],
   }));
+
+  const activeRoute = state.routes[state.index];
+  const ActiveIcon = descriptors[activeRoute.key].options.tabBarIcon as unknown as LucideIcon;
 
   return (
     <View
@@ -156,27 +155,26 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
           })}
         </View>
 
-        {/* Drawn after the bar so it sits above it, and untouchable so the tab
-            underneath still receives the press that put it here. */}
+        {/* Untouchable, so the press still reaches the tab underneath that put
+            it here. The ring is the page colour, which is what notches it out
+            of the bar's edge without any masking. */}
         <Animated.View
           pointerEvents="none"
           style={[
             styles.indicator,
-            {
-              backgroundColor: c.primary,
-              // The ring is the page colour, which is what cuts the notch out
-              // of the bar's top edge without any masking.
-              borderColor: c.background,
-            },
+            { backgroundColor: c.primary, borderColor: c.background },
             indicatorStyle,
           ]}
-        />
+        >
+          <ActiveIcon size={ICON_SIZE} color={c.onPrimary} strokeWidth={2.5} />
+        </Animated.View>
       </View>
     </View>
   );
 }
 
-export const FLOATING_TAB_CLEARANCE = BAR_HEIGHT + RISE + space.lg;
+/** What a scrolling screen must leave clear at the bottom. */
+export const FLOATING_TAB_CLEARANCE = BAR_HEIGHT + OVERHANG + space.lg;
 
 const styles = StyleSheet.create({
   dock: {
@@ -184,9 +182,10 @@ const styles = StyleSheet.create({
     left: 0, right: 0, bottom: 0,
     paddingHorizontal: SIDE_MARGIN,
   },
-  // Tall enough to hold the indicator where it rises above the bar, so it is
-  // never clipped by its own parent.
-  stack: { height: BAR_HEIGHT + RISE, justifyContent: 'flex-end' },
+  // Tall enough to contain the indicator where it rises above the bar. Android
+  // clips children that leave their parent, so the parent has to be big enough
+  // rather than relying on overflow.
+  stack: { height: BAR_HEIGHT + OVERHANG, justifyContent: 'flex-end' },
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -195,29 +194,38 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({
       ios: { shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
-      android: { elevation: 12 },
+      android: { elevation: 10 },
       default: {},
     }),
   },
   item: {
     flex: 1,
+    height: BAR_HEIGHT,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    height: BAR_HEIGHT,
-    paddingBottom: space.md,
   },
-  labelSlot: { position: 'absolute', bottom: -2 },
+  restingIcon: {
+    position: 'absolute',
+    bottom: ICON_REST_Y - ICON_SIZE / 2,
+    alignItems: 'center',
+  },
+  labelSlot: { position: 'absolute', bottom: 5 },
   indicator: {
     position: 'absolute',
     left: 0,
-    bottom: BAR_HEIGHT - INDICATOR / 2 - (INDICATOR / 2 - RISE),
+    bottom: INDICATOR_Y - INDICATOR / 2,
     width: INDICATOR,
     height: INDICATOR,
     borderRadius: INDICATOR / 2,
     borderWidth: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 14 },
+      ios: {
+        shadowColor: '#000', shadowOpacity: 0.25,
+        shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 16 },
       default: {},
     }),
   },
