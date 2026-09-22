@@ -7,6 +7,7 @@ import { useTheme } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
 import { buildRoomLedger } from '../../../lib/balance';
 import { Screen } from '../../../components/Screen';
+import { FLOATING_TAB_CLEARANCE } from '../../../components/FloatingTabBar';
 import { Text } from '../../../components/Text';
 import { Card } from '../../../components/Card';
 import { Money } from '../../../components/Money';
@@ -121,7 +122,7 @@ export default function RoomsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, paddingBottom: 96, gap: space.sm },
+  content: { padding: space.lg, paddingBottom: FLOATING_TAB_CLEARANCE + 72, gap: space.sm },
   header: { gap: space.xs, marginBottom: space.md },
   roomCard: { borderRadius: radius.md, overflow: 'hidden' },
   iconWrap: {

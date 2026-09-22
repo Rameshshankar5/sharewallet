@@ -8,6 +8,7 @@ import { useTheme } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
 import { formatMoney } from '../../../lib/money';
 import { Screen } from '../../../components/Screen';
+import { FLOATING_TAB_CLEARANCE } from '../../../components/FloatingTabBar';
 import { Text } from '../../../components/Text';
 import { Card } from '../../../components/Card';
 import { Money } from '../../../components/Money';
@@ -139,7 +140,7 @@ export default function BalancesScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, paddingBottom: 96 },
+  content: { padding: space.lg, paddingBottom: FLOATING_TAB_CLEARANCE + 72 },
   header: { gap: space.md },
   hero: { marginTop: space.xs },
   splitRow: {

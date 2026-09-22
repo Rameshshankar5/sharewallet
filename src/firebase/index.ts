@@ -58,10 +58,12 @@ export function auth(): fbAuth.Auth {
 export function db(): Firestore {
   if (!_db) {
     try {
-      // React Native cannot use the streaming WebChannel transport the SDK
-      // prefers, so we force long polling. Without this, snapshots silently
-      // stall on some Android networks.
-      _db = initializeFirestore(app(), { experimentalForceLongPolling: true });
+      // Some Android networks break the streaming WebChannel transport the SDK
+      // prefers, and snapshots then stall silently. This used to force long
+      // polling always, which fixed the stall at the cost of a slower first
+      // connection for everyone. Auto-detect keeps the fix without the tax:
+      // the SDK tries WebChannel and falls back on its own when it fails.
+      _db = initializeFirestore(app(), { experimentalAutoDetectLongPolling: true });
     } catch {
       _db = getFirestore(app());
     }
