@@ -1,21 +1,20 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Activity, Home, UserCircle2, Users } from 'lucide-react-native';
-import { FloatingTabBar } from '../../../components/FloatingTabBar';
+import { TabBar } from '../../../components/TabBar';
 
 /**
  * Four destinations — under the five-item ceiling, and each one is a place
  * rather than an action. Adding an expense is a task, so it lives on a floating
  * button that opens a sheet instead of stealing a tab.
  *
- * The bar itself is ours (see FloatingTabBar): it floats clear of the screen
- * edge and the selected tab rides above it, which the stock bar cannot do
- * because it clips anything that leaves its bounds.
+ * The bar itself is ours (see TabBar): every tab keeps its name, and the
+ * selected one gains an icon, shifts down and takes an underline.
  */
 export default function TabsLayout() {
   return (
     <Tabs
-      tabBar={(props) => <FloatingTabBar {...props} />}
+      tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen

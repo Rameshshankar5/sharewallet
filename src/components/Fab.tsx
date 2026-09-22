@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Plus, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { radius, space } from '../theme/tokens';
-import { FLOATING_TAB_CLEARANCE } from './FloatingTabBar';
+import { TAB_BAR_CLEARANCE } from './TabBar';
 import { Text } from './Text';
 
 interface Props {
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: space.lg,
     // Sits above the floating tab bar rather than behind it.
-    bottom: FLOATING_TAB_CLEARANCE - space.sm,
+    bottom: TAB_BAR_CLEARANCE - space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,

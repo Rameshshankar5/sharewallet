@@ -5,7 +5,7 @@ import { useData } from '../../../context/DataContext';
 import { space } from '../../../theme/tokens';
 import { groupByDay } from '../../../lib/time';
 import { Screen } from '../../../components/Screen';
-import { FLOATING_TAB_CLEARANCE } from '../../../components/FloatingTabBar';
+import { TAB_BAR_CLEARANCE } from '../../../components/TabBar';
 import { Text } from '../../../components/Text';
 import { AuditCard } from '../../../components/AuditCard';
 import { EmptyState } from '../../../components/EmptyState';
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.md },
   sub: { marginTop: space.xs },
   filter: { marginTop: space.lg },
-  content: { paddingHorizontal: space.lg, paddingBottom: FLOATING_TAB_CLEARANCE },
+  content: { paddingHorizontal: space.lg, paddingBottom: TAB_BAR_CLEARANCE },
   dayLabel: { marginTop: space.lg, marginBottom: space.sm, letterSpacing: 0.6 },
   item: {},
 });

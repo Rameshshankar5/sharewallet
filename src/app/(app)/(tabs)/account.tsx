@@ -11,7 +11,7 @@ import { useTheme, type ThemePreference } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
 import { APP_NAME } from '../../../lib/app';
 import { Screen } from '../../../components/Screen';
-import { FLOATING_TAB_CLEARANCE } from '../../../components/FloatingTabBar';
+import { TAB_BAR_CLEARANCE } from '../../../components/TabBar';
 import { Text } from '../../../components/Text';
 import { Card } from '../../../components/Card';
 import { Avatar } from '../../../components/Avatar';
@@ -250,7 +250,7 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, paddingBottom: FLOATING_TAB_CLEARANCE, gap: space.md },
+  content: { padding: space.lg, paddingBottom: TAB_BAR_CLEARANCE, gap: space.md },
   profileCard: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   profileText: { flex: 1, gap: 2 },
   cameraBadge: {
