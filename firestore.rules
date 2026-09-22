@@ -1,0 +1,167 @@
+rules_version = '2';
+
+// ShareWallet security rules.
+//
+// The app has no backend, so these rules ARE the backend. Three ideas run
+// through all of them:
+//
+//   1. Having a Firebase login is not access. Access requires a `users/{uid}`
+//      profile document, and only the superadmin can create one. Someone who
+//      finds your API key and signs themselves up lands with no profile and can
+//      read and write nothing.
+//   2. Visibility is denormalised. Every expense, settlement and audit row
+//      carries a `viewerIds` array, so "can this person see this row" is one
+//      indexed check rather than a lookup chain.
+//   3. The audit log is append-only at the database level. Nobody — not even
+//      the superadmin — can edit or delete a record of who changed what.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------- helpers
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function hasProfile() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(uid()));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+
+    // An active, admin-approved member of the group.
+    function isMember() {
+      return hasProfile() && profile().active == true;
+    }
+
+    function isAdmin() {
+      return isMember() && profile().role == 'superadmin';
+    }
+
+    function changedOnly(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    function canSee() {
+      return isMember() && uid() in resource.data.viewerIds;
+    }
+
+    // --------------------------------------------------------------- users
+    //
+    // Bootstrapping note: the very first superadmin has to be created by hand
+    // in the Firebase console (Authentication -> Add user, then Firestore ->
+    // add a users/<that uid> document with role: "superadmin"). There is
+    // deliberately no self-service path, because that path would also be open
+    // to anyone else.
+    match /users/{userId} {
+      allow read: if isMember();
+
+      allow create: if isAdmin()
+        && request.resource.data.uid == userId
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.role in ['member', 'superadmin'];
+
+      // Members may only clear their own first-login password flag or rename
+      // themselves. Role and active status stay in the admin's hands.
+      allow update: if isAdmin()
+        || (uid() == userId && changedOnly(['mustChangePassword', 'displayName']));
+
+      // Deleting a profile would orphan that person's share of past expenses.
+      // Pause the account instead (active: false).
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------- rooms
+    match /rooms/{roomId} {
+      allow read: if isMember() && uid() in resource.data.memberIds;
+
+      allow create: if isMember()
+        && request.resource.data.createdBy == uid()
+        && uid() in request.resource.data.memberIds;
+
+      // Any member can rename a room or change who is in it — and every such
+      // change is written to the audit log in the same batch.
+      allow update: if isMember()
+        && uid() in resource.data.memberIds
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ expenses
+    match /expenses/{expenseId} {
+      allow read: if canSee();
+
+      allow create: if isMember()
+        && uid() in request.resource.data.viewerIds
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.updatedBy == uid()
+        && request.resource.data.version == 1
+        && request.resource.data.deleted == false
+        && request.resource.data.totalCents is int
+        && request.resource.data.totalCents > 0;
+
+      allow update: if canSee() && (
+        // Case 1: room membership changed, so visibility is being re-synced.
+        // Nothing about the money moves, so no version bump is required.
+        changedOnly(['viewerIds'])
+
+        // Case 2: a real edit. Provenance is immutable, the editor must stamp
+        // themselves, and the version must advance by exactly one — which is
+        // what makes two people editing at once detectable rather than silent.
+        || (
+          uid() in request.resource.data.viewerIds
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedBy == uid()
+          && request.resource.data.version == resource.data.version + 1
+          && request.resource.data.totalCents is int
+          && request.resource.data.totalCents > 0
+        )
+      );
+
+      // Expenses are soft-deleted (deleted: true) so the money trail survives.
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------- settlements
+    match /settlements/{settlementId} {
+      allow read: if canSee();
+
+      allow create: if isMember()
+        && uid() in request.resource.data.viewerIds
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.deleted == false
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0;
+
+      allow update: if canSee() && changedOnly(['deleted']);
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------- audit
+    //
+    // Append-only. This is the guarantee that makes "who changed what"
+    // trustworthy: once written, a row cannot be altered or removed by anyone
+    // through the app, including whoever wrote it.
+    match /audit/{entryId} {
+      allow read: if canSee();
+
+      allow create: if isMember()
+        && request.resource.data.byUid == uid()
+        && uid() in request.resource.data.viewerIds;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
