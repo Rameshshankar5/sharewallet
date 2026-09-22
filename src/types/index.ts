@@ -61,6 +61,15 @@ export interface Expense {
 
 export interface Settlement {
   id: string;
+  /**
+   * Which room's debt this payment clears, or null for a direct debt.
+   *
+   * A room's balance is built from that room's expenses, so it has to be built
+   * from that room's payments too. Counting every payment between two members
+   * against every room they share makes a room that owns no expenses show a
+   * balance anyway — and lets one room's repayment move another room's figure.
+   */
+  roomId: string | null;
   /** Person handing over the cash. */
   fromUid: string;
   /** Person receiving it. */

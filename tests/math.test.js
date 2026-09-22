@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { parseAmount, formatMoney, formatCents } = require('../.math-build/money');
 const { splitEqually, distribute, checkBalance, sumMap, rebalanceUnlocked } = require('../.math-build/split');
-const { pairwiseFromExpense, buildLedger, simplify } = require('../.math-build/balance');
+const { pairwiseFromExpense, buildLedger, buildRoomLedger, simplify } = require('../.math-build/balance');
 
 test('parseAmount handles the ways people actually type money', () => {
   assert.equal(parseAmount('1200'), 120000);
@@ -129,4 +129,81 @@ test('settle-up suggests the fewest payments', () => {
   assert.equal(payments.length, 2);
   assert.equal(payments.reduce((s, p) => s + p.amount, 0), 3000);
   assert.ok(payments.every((p) => p.to === 'a'));
+});
+
+/**
+ * Rooms are buckets, not separate currencies.
+ *
+ * The bug these cover: a room's ledger was built from that room's expenses but
+ * from every payment between its members, so repaying a debt that had nothing
+ * to do with the room moved the room's figure — and a room holding no expenses
+ * at all could still claim you owed money.
+ */
+test('a room with no expenses shows no balance, whatever was repaid elsewhere', () => {
+  const expenses = [
+    // A direct expense between the two of them — not in any room.
+    { roomId: null, deleted: false, payers: { me: 30000 }, splits: { me: 15000, thuva: 15000 } },
+  ];
+  const settlements = [
+    // Thuva repays part of that direct debt. No room involved.
+    { roomId: null, deleted: false, fromUid: 'thuva', toUid: 'me', amount: 8000 },
+  ];
+
+  const room = buildRoomLedger(expenses, settlements, 'room88');
+  assert.equal(room.netFor('me'), 0, 'an empty room must be empty');
+
+  // The overall picture still moves: 15000 owed, 8000 repaid.
+  const overall = buildLedger(expenses, settlements);
+  assert.equal(overall.between('me', 'thuva'), 7000);
+});
+
+test('one room never moves another room', () => {
+  const expenses = [
+    { roomId: 'room88', deleted: false, payers: { me: 20000 }, splits: { me: 10000, thuva: 10000 } },
+    { roomId: 'room99', deleted: false, payers: { thuva: 6000 }, splits: { me: 3000, thuva: 3000 } },
+  ];
+  // Thuva clears room 88 only.
+  const settlements = [
+    { roomId: 'room88', deleted: false, fromUid: 'thuva', toUid: 'me', amount: 10000 },
+  ];
+
+  assert.equal(buildRoomLedger(expenses, settlements, 'room88').netFor('me'), 0);
+  assert.equal(buildRoomLedger(expenses, settlements, 'room99').netFor('me'), -3000);
+
+  // And the single overall number is still the sum of everything.
+  assert.equal(buildLedger(expenses, settlements).between('me', 'thuva'), -3000);
+});
+
+test('a room expense counts towards your one-to-one balance like any other', () => {
+  // The fan bought for room 88, split four ways, is still money between you
+  // and each flatmate — it must show up in the friend ledger, not only in
+  // the room. That is why the friend screen marks rows with their room
+  // rather than filtering them out.
+  const fan = {
+    roomId: 'room88', deleted: false,
+    payers: { me: 40000 },
+    splits: { me: 10000, thuva: 10000, kasun: 10000, nimal: 10000 },
+  };
+  const dinner = {
+    roomId: null, deleted: false,
+    payers: { me: 5000 }, splits: { me: 2500, thuva: 2500 },
+  };
+
+  const overall = buildLedger([fan, dinner], []);
+  assert.equal(overall.between('me', 'thuva'), 12500, 'fan share + dinner share');
+  assert.equal(overall.between('me', 'kasun'), 10000, 'fan share only');
+
+  // Inside the room, only the fan counts.
+  assert.equal(buildRoomLedger([fan, dinner], [], 'room88').netFor('me'), 30000);
+});
+
+test('deleted expenses and payments are ignored by a room ledger', () => {
+  const expenses = [
+    { roomId: 'r1', deleted: true, payers: { me: 9000 }, splits: { me: 4500, thuva: 4500 } },
+    { roomId: 'r1', deleted: false, payers: { me: 2000 }, splits: { me: 1000, thuva: 1000 } },
+  ];
+  const settlements = [
+    { roomId: 'r1', deleted: true, fromUid: 'thuva', toUid: 'me', amount: 1000 },
+  ];
+  assert.equal(buildRoomLedger(expenses, settlements, 'r1').netFor('me'), 1000);
 });

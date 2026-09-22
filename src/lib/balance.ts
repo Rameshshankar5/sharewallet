@@ -136,6 +136,32 @@ export function buildLedger(expenses: LedgerSource[], settlements: SettlementSou
   return ledger;
 }
 
+/** Anything that belongs to a room, or to no room, and can be soft-deleted. */
+export interface Scoped {
+  roomId: string | null;
+  deleted: boolean;
+}
+
+/**
+ * The ledger for one room: that room's expenses and that room's payments.
+ *
+ * Both halves have to be scoped the same way. Scoping the expenses but taking
+ * every payment between members lets a repayment from somewhere else move this
+ * room's figure, and makes a room with no expenses show a balance anyway. Your
+ * balance with a person is a separate question, answered by the global ledger
+ * over everything — see `buildLedger`.
+ */
+export function buildRoomLedger(
+  expenses: (LedgerSource & Scoped)[],
+  settlements: (SettlementSource & Scoped)[],
+  roomId: string,
+): Ledger {
+  return buildLedger(
+    expenses.filter((e) => !e.deleted && e.roomId === roomId),
+    settlements.filter((s) => !s.deleted && s.roomId === roomId),
+  );
+}
+
 /**
  * Reduce a set of balances to the smallest number of payments that clears them.
  * Used by "settle up" to suggest who should pay whom inside a room.

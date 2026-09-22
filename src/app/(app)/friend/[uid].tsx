@@ -17,6 +17,7 @@ import { Button } from '../../../components/Button';
 import { SectionHeader } from '../../../components/SectionHeader';
 import { EmptyState } from '../../../components/EmptyState';
 import { ExpenseRow } from '../../../components/ExpenseRow';
+import { RoomTag } from '../../../components/RoomTag';
 import { ListRow } from '../../../components/ListRow';
 import { Loading } from '../../../components/Loading';
 
@@ -24,7 +25,7 @@ import { Loading } from '../../../components/Loading';
 export default function FriendScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { profile } = useAuth();
-  const { ledger, usersById, expenses, settlements, nameOf, roomNameOf, loading } = useData();
+  const { ledger, usersById, roomsById, expenses, settlements, nameOf, loading } = useData();
   const { c } = useTheme();
   const [showDeleted, setShowSettled] = useState(false);
 
@@ -117,6 +118,12 @@ export default function FriendScreen() {
                     ? `You paid ${friend.displayName}`
                     : `${friend.displayName} paid you`}
                   subtitle={[p.note, formatDate(p.date)].filter(Boolean).join(' · ')}
+                  badge={p.roomId ? (
+                    <RoomTag
+                      name={roomsById[p.roomId]?.name ?? 'A room'}
+                      icon={roomsById[p.roomId]?.icon}
+                    />
+                  ) : null}
                   trailing={<Text variant="smallStrong" tabular>{formatMoney(p.amount)}</Text>}
                   divider={i < payments.length - 1}
                 />
@@ -157,7 +164,9 @@ export default function FriendScreen() {
                   expense={e}
                   meUid={me}
                   nameOf={nameOf}
-                  showRoom={e.roomId ? roomNameOf(e.roomId) : null}
+                  showRoom={e.roomId
+                    ? { name: roomsById[e.roomId]?.name ?? 'A room', icon: roomsById[e.roomId]?.icon }
+                    : null}
                   onPress={() => router.push(`/expense/${e.id}`)}
                 />
               ))

@@ -8,6 +8,7 @@ import { Card } from './Card';
 import { ListRow } from './ListRow';
 import { Text } from './Text';
 import { Glyph } from './Glyph';
+import { RoomTag } from './RoomTag';
 import { categoryIcon } from './icons';
 import type { Expense } from '../types';
 
@@ -17,8 +18,11 @@ interface Props {
   meUid: string;
   nameOf: (uid: string) => string;
   onPress: () => void;
-  /** Show which room it belongs to — useful outside a room screen. */
-  showRoom?: string | null;
+  /**
+   * The room this came from, shown as a mark on the row. Pass null on a room's
+   * own screen, where every line is from that room and the mark says nothing.
+   */
+  showRoom?: { name: string; icon?: string | null } | null;
 }
 
 export function ExpenseRow({ expense, meUid, nameOf, onPress, showRoom }: Props) {
@@ -44,9 +48,11 @@ export function ExpenseRow({ expense, meUid, nameOf, onPress, showRoom }: Props)
         title={expense.deleted ? `${expense.description} (deleted)` : expense.description}
         subtitle={[
           `${paidBy} ${formatMoney(expense.totalCents)}`,
-          showRoom ? showRoom : null,
           formatDate(expense.date),
-        ].filter(Boolean).join(' · ')}
+        ].join(' · ')}
+        badge={showRoom ? (
+          <RoomTag name={showRoom.name} icon={showRoom.icon} muted={expense.deleted} />
+        ) : null}
         trailing={
           expense.deleted ? (
             <Text variant="caption" tone="faint">removed</Text>

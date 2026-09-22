@@ -10,6 +10,8 @@ interface Props {
   title: string;
   subtitle?: string;
   trailing?: React.ReactNode;
+  /** Sits under the subtitle — a room mark, a status pill, anything small. */
+  badge?: React.ReactNode;
   onPress?: () => void;
   chevron?: boolean;
   divider?: boolean;
@@ -18,7 +20,7 @@ interface Props {
 }
 
 export function ListRow({
-  leading, title, subtitle, trailing, onPress, chevron, divider, style, accessibilityLabel,
+  leading, title, subtitle, trailing, badge, onPress, chevron, divider, style, accessibilityLabel,
 }: Props) {
   const { c } = useTheme();
 
@@ -30,6 +32,7 @@ export function ListRow({
         {subtitle ? (
           <Text variant="caption" tone="muted" numberOfLines={2} style={styles.sub}>{subtitle}</Text>
         ) : null}
+        {badge ? <View style={styles.badge}>{badge}</View> : null}
       </View>
       {trailing}
       {chevron ? <ChevronRight size={20} color={c.textFaint} strokeWidth={2} /> : null}
@@ -61,4 +64,5 @@ const styles = StyleSheet.create({
   },
   text: { flex: 1 },
   sub: { marginTop: 2 },
+  badge: { marginTop: 6, flexDirection: 'row' },
 });

@@ -102,7 +102,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       onSnapshot(
         query(settlementsCol(), where('viewerIds', 'array-contains', uid)),
         (snap) => merge({
-          settlements: snap.docs.map((d) => ({ id: d.id, ...d.data() } as Settlement)),
+          // Payments written before rooms owned their own settlements have no
+          // roomId. They were recorded against the overall balance, so that is
+          // what they stay: a direct debt, belonging to no room.
+          settlements: snap.docs.map((d) => ({
+            id: d.id, roomId: null, ...d.data(),
+          } as Settlement)),
           ready: { settlements: true } as Store['ready'],
         }),
       ),

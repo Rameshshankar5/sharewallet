@@ -6,6 +6,8 @@ import { formatMoney } from '../lib/money';
 import type { Settlement, UserProfile } from '../types';
 
 export interface SettlementInput {
+  /** The room whose balance this clears, or null for a direct debt. */
+  roomId: string | null;
   fromUid: string;
   toUid: string;
   amount: number;
@@ -39,6 +41,7 @@ export async function recordSettlement(
 
   const ref = doc(settlementsCol());
   const settlement: Omit<Settlement, 'id'> = {
+    roomId: input.roomId,
     fromUid: input.fromUid,
     toUid: input.toUid,
     amount: input.amount,
@@ -61,7 +64,7 @@ export async function recordSettlement(
     byName: actor.displayName,
     targetId: ref.id,
     targetLabel: label,
-    roomId: null,
+    roomId: input.roomId,
     viewerIds,
     changes: [{
       field: 'settlement', kind: 'added', label,
@@ -85,7 +88,7 @@ export async function deleteSettlement(
     byName: actor.displayName,
     targetId: settlement.id,
     targetLabel: 'Payment removed',
-    roomId: null,
+    roomId: settlement.roomId ?? null,
     viewerIds: settlement.viewerIds,
     changes: [{
       field: 'settlement', kind: 'removed',

@@ -5,7 +5,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useData } from '../../../context/DataContext';
 import { useTheme } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
-import { buildLedger } from '../../../lib/balance';
+import { buildRoomLedger } from '../../../lib/balance';
 import { Screen } from '../../../components/Screen';
 import { Text } from '../../../components/Text';
 import { Card } from '../../../components/Card';
@@ -25,22 +25,18 @@ export default function RoomsScreen() {
   const me = profile!.uid;
 
   /**
-   * Each room's ledger is built from that room's expenses, plus any payment
-   * between two of its members. The expenses stay scoped to the room so the
-   * figure answers "where do I stand here"; the payments are not scoped,
-   * because repaying a debt clears it wherever it appears.
+   * Each room's ledger is built from that room's expenses and that room's
+   * payments. Both are scoped, so the figure answers "where do I stand here"
+   * and one room's spending never moves another's — which is the whole point
+   * of having rooms. Your balance with a person stays a single number: it is
+   * on the Balances tab, built from everything at once.
    */
   const summaries = useMemo(() => {
     const map: Record<string, { net: number; count: number }> = {};
     rooms.forEach((room) => {
-      const roomExpenses = expenses.filter((e) => !e.deleted && e.roomId === room.id);
-      const roomSettlements = settlements.filter(
-        (s) => !s.deleted
-          && room.memberIds.includes(s.fromUid)
-          && room.memberIds.includes(s.toUid),
-      );
-      const ledger = buildLedger(roomExpenses, roomSettlements);
-      map[room.id] = { net: ledger.netFor(me), count: roomExpenses.length };
+      const ledger = buildRoomLedger(expenses, settlements, room.id);
+      const count = expenses.filter((e) => !e.deleted && e.roomId === room.id).length;
+      map[room.id] = { net: ledger.netFor(me), count };
     });
     return map;
   }, [rooms, expenses, settlements, me]);

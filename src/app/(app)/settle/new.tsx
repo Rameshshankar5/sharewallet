@@ -7,6 +7,7 @@ import { useData } from '../../../context/DataContext';
 import { useTheme } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
 import { CURRENCY_SYMBOL, centsToInput, formatMoney, parseAmount } from '../../../lib/money';
+import { buildRoomLedger } from '../../../lib/balance';
 import { recordSettlement } from '../../../services/settlements';
 import { Screen } from '../../../components/Screen';
 import { AppBar } from '../../../components/AppBar';
@@ -27,14 +28,27 @@ type Direction = 'iPaid' | 'theyPaid';
  * offsets the balance, so the history of what was spent stays intact.
  */
 export default function SettleScreen() {
-  const params = useLocalSearchParams<{ with?: string; amount?: string }>();
+  const params = useLocalSearchParams<{
+    with?: string; amount?: string; roomId?: string; dir?: Direction;
+  }>();
   const { profile } = useAuth();
-  const { friends, ledger, nameOf, rooms } = useData();
+  const { friends, ledger, nameOf, rooms, expenses, settlements } = useData();
   const { c } = useTheme();
 
   const me = profile!.uid;
+  /**
+   * Set when you arrived from a room's settle-up, so the payment lands against
+   * that room's balance rather than floating free. Opened from the Balances tab
+   * it stays null: a direct debt, clearing the overall figure only.
+   */
+  const roomId = params.roomId ?? null;
+  const room = roomId ? rooms.find((r) => r.id === roomId) ?? null : null;
   const [otherUid, setOtherUid] = useState(params.with ?? friends[0]?.uid ?? '');
   const [direction, setDirection] = useState<Direction>(() => {
+    // A room's settle-up already worked out who pays whom, so it says so
+    // outright rather than letting the overall balance — which covers debts
+    // from outside this room — guess the opposite way.
+    if (params.dir === 'iPaid' || params.dir === 'theyPaid') return params.dir;
     const seed = params.with ? ledger.between(me, params.with) : 0;
     // Default to whichever way actually clears the debt.
     return seed < 0 ? 'iPaid' : 'theyPaid';
@@ -66,7 +80,19 @@ export default function SettleScreen() {
   const sharedRooms = rooms.filter(
     (r) => r.memberIds.includes(me) && !!otherUid && r.memberIds.includes(otherUid),
   );
-  const balance = otherUid ? ledger.between(me, otherUid) : 0;
+  /**
+   * Inside a room, "outstanding" has to mean the room's outstanding — the
+   * overall figure includes debts this payment is not clearing, so offering it
+   * as the amount would over-settle the room.
+   */
+  const roomLedger = useMemo(() => {
+    if (!room) return null;
+    return buildRoomLedger(expenses, settlements, room.id);
+  }, [room, expenses, settlements]);
+
+  const balance = !otherUid ? 0
+    : roomLedger ? roomLedger.between(me, otherUid)
+    : ledger.between(me, otherUid);
   const suggested = Math.abs(balance);
 
   const amountError = showErrors && amount <= 0 ? 'Enter how much was paid.' : null;
@@ -81,7 +107,11 @@ export default function SettleScreen() {
     if (!canSave) return;
     setSaving(true);
     try {
-      await recordSettlement({ fromUid, toUid, amount, note, date, alsoVisibleTo }, profile!, nameOf);
+      await recordSettlement(
+        { roomId, fromUid, toUid, amount, note, date, alsoVisibleTo },
+        profile!,
+        nameOf,
+      );
       router.back();
     } catch (e) {
       setError((e as Error).message || 'Could not record the payment.');
@@ -103,7 +133,11 @@ export default function SettleScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <AppBar title="Record a payment" leading="close" />
+      <AppBar
+        title="Record a payment"
+        subtitle={room ? `In ${room.name}` : undefined}
+        leading="close"
+      />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -168,11 +202,19 @@ export default function SettleScreen() {
               />
             ) : null}
 
-            {sharedRooms.length > 0 ? (
+            {room ? (
               <Text variant="caption" tone="faint">
-                This payment settles up everywhere at once. Members of{' '}
-                {sharedRooms.map((r) => r.name).join(', ')} will see it, because
-                it changes the balances in {sharedRooms.length === 1 ? 'that room' : 'those rooms'}.
+                This payment clears {room.name} only. It still comes off your
+                overall balance with {nameOf(otherUid)}, but no other room moves.
+                Everyone in {room.name} will see it, so their figures match yours.
+              </Text>
+            ) : sharedRooms.length > 0 ? (
+              <Text variant="caption" tone="faint">
+                This payment clears a direct debt, not a room. It comes off your
+                overall balance with {nameOf(otherUid)} and leaves{' '}
+                {sharedRooms.map((r) => r.name).join(', ')} untouched — to settle{' '}
+                {sharedRooms.length === 1 ? 'that room' : 'those rooms'}, use its
+                own Settle up tab. Members will still see it.
               </Text>
             ) : (
               <Text variant="caption" tone="faint">

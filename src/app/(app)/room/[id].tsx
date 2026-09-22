@@ -6,7 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useData } from '../../../context/DataContext';
 import { useTheme } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
-import { buildLedger, simplify } from '../../../lib/balance';
+import { buildRoomLedger, simplify } from '../../../lib/balance';
 import { formatMoney } from '../../../lib/money';
 import { Screen } from '../../../components/Screen';
 import { AppBar } from '../../../components/AppBar';
@@ -44,22 +44,13 @@ export default function RoomScreen() {
 
   const { myNet, suggestions } = useMemo(() => {
     if (!room) return { myNet: 0, suggestions: [] };
-    const live = roomExpenses.filter((e) => !e.deleted);
-    // Any payment between two members counts here. Money is money: if Thuva
-    // pays you back, the debt is gone, and it would be wrong for this room to
-    // keep claiming otherwise just because the payment wasn't labelled.
-    const paid = settlements.filter(
-      (s) => !s.deleted
-        && room.memberIds.includes(s.fromUid)
-        && room.memberIds.includes(s.toUid),
-    );
-    const ledger = buildLedger(live, paid);
+    const ledger = buildRoomLedger(expenses, settlements, room.id);
 
     const balances: Record<string, number> = {};
     room.memberIds.forEach((uid) => { balances[uid] = ledger.netFor(uid); });
 
     return { myNet: ledger.netFor(me), suggestions: simplify(balances) };
-  }, [room, roomExpenses, settlements, me]);
+  }, [room, expenses, settlements, me]);
 
   const roomAudit = useMemo(
     () => audit.filter((a) => a.roomId === id),
@@ -185,7 +176,9 @@ export default function RoomScreen() {
                     divider={i < suggestions.length - 1}
                     onPress={
                       edge.from === me
-                        ? () => router.push(`/settle/new?with=${edge.to}&amount=${edge.amount}`)
+                        ? () => router.push(
+                            `/settle/new?with=${edge.to}&amount=${edge.amount}&roomId=${room.id}&dir=iPaid`,
+                          )
                         : undefined
                     }
                   />
