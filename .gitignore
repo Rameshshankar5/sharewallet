@@ -55,3 +55,11 @@ example
 # Release signing key — NEVER commit
 credentials/
 *.keystore
+
+# Push notification credentials.
+# google-services.json is client config (it ships inside the APK), but it names
+# your Firebase project, and this repo is public — same reasoning as .env.
+google-services.json
+# The FCM service account key is a REAL secret. It goes to Expo, never here.
+*-firebase-adminsdk-*.json
+service-account*.json
