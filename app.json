@@ -2,7 +2,7 @@
   "expo": {
     "name": "1-1-1",
     "slug": "sharewallet",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sharewallet",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.sharewallet.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"

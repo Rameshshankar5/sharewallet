@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
@@ -72,6 +73,14 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
 
 function Shell() {
   const { c, isDark } = useTheme();
+
+  // The window behind the app keeps the phone's own colour otherwise, which
+  // shows through as a flash of the wrong theme during screen transitions —
+  // obvious when someone has forced Light on a dark phone, or the reverse.
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(c.background).catch(() => {});
+  }, [c.background]);
+
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />

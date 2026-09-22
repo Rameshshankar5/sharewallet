@@ -3,11 +3,11 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import {
-  Copy, KeyRound, LogOut, Moon, ShieldCheck, Sun, Users2,
+  Copy, KeyRound, LogOut, Moon, ShieldCheck, Smartphone, Sun, Users2,
 } from 'lucide-react-native';
 import { useAuth } from '../../../context/AuthContext';
 import { useData } from '../../../context/DataContext';
-import { useTheme } from '../../../theme/ThemeProvider';
+import { useTheme, type ThemePreference } from '../../../theme/ThemeProvider';
 import { radius, space } from '../../../theme/tokens';
 import { APP_NAME } from '../../../lib/app';
 import { Screen } from '../../../components/Screen';
@@ -18,11 +18,12 @@ import { ListRow } from '../../../components/ListRow';
 import { SectionHeader } from '../../../components/SectionHeader';
 import { Button } from '../../../components/Button';
 import { Banner } from '../../../components/Banner';
+import { SegmentedControl } from '../../../components/SegmentedControl';
 
 export default function AccountScreen() {
   const { profile, signOut } = useAuth();
   const { users, expenses } = useData();
-  const { c, isDark } = useTheme();
+  const { c, isDark, preference, setPreference } = useTheme();
   const [copied, setCopied] = useState(false);
 
   const me = profile!;
@@ -118,8 +119,23 @@ export default function AccountScreen() {
                   : <Sun size={20} color={c.textMuted} strokeWidth={2.2} />
               }
               title="Appearance"
-              subtitle={`Following your phone (${isDark ? 'dark' : 'light'})`}
+              subtitle={
+                preference === 'system'
+                  ? `Following your phone (${isDark ? 'dark' : 'light'})`
+                  : `Always ${preference}, whatever your phone is set to`
+              }
             />
+            <View style={styles.appearance}>
+              <SegmentedControl<ThemePreference>
+                value={preference}
+                onChange={setPreference}
+                segments={[
+                  { value: 'system', label: 'System', Icon: Smartphone },
+                  { value: 'light', label: 'Light', Icon: Sun },
+                  { value: 'dark', label: 'Dark', Icon: Moon },
+                ]}
+              />
+            </View>
           </Card>
         </View>
 
@@ -147,6 +163,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill,
   },
   section: { marginTop: space.md },
+  appearance: { paddingHorizontal: space.lg, paddingBottom: space.lg },
   danger: { marginTop: space.xxl },
   version: { marginTop: space.lg },
 });
