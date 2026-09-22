@@ -7,6 +7,11 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: Role;
+  /**
+   * Cloudinary delivery URL for their picture, or null for the coloured
+   * initials. Stored as a plain URL: the image itself is not in Firestore.
+   */
+  photoUrl: string | null;
   active: boolean;
   /** Set when the superadmin creates the account; cleared once they pick their own. */
   mustChangePassword: boolean;
@@ -48,6 +53,11 @@ export interface Expense {
   participantIds: string[];
   /** participantIds ∪ room members. Drives read access and queries. */
   viewerIds: string[];
+  /**
+   * Cloudinary URL of a receipt or product photo, or null. One per expense —
+   * the thing people actually reach for is "show me the bill", not an album.
+   */
+  receiptUrl: string | null;
   /** Epoch ms of when the money was spent (not when the row was created). */
   date: number;
   createdBy: string;

@@ -64,10 +64,12 @@ service cloud.firestore {
         && request.resource.data.createdBy == uid()
         && request.resource.data.role in ['member', 'superadmin'];
 
-      // Members may only clear their own first-login password flag or rename
-      // themselves. Role and active status stay in the admin's hands.
+      // Members may only clear their own first-login password flag, rename
+      // themselves, or set their own picture. Role and active status stay in
+      // the admin's hands — and `photoUrl` is scoped to your own document, so
+      // nobody can put a picture on someone else's profile.
       allow update: if isAdmin()
-        || (uid() == userId && changedOnly(['mustChangePassword', 'displayName']));
+        || (uid() == userId && changedOnly(['mustChangePassword', 'displayName', 'photoUrl']));
 
       // Deleting a profile would orphan that person's share of past expenses.
       // Pause the account instead (active: false).

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import {
-  Copy, KeyRound, LogOut, Moon, ShieldCheck, Smartphone, Sun, Users2,
+  Camera, Copy, KeyRound, LogOut, Moon, ShieldCheck, Smartphone, Sun, Users2,
 } from 'lucide-react-native';
 import { useAuth } from '../../../context/AuthContext';
 import { useData } from '../../../context/DataContext';
@@ -19,12 +19,17 @@ import { SectionHeader } from '../../../components/SectionHeader';
 import { Button } from '../../../components/Button';
 import { Banner } from '../../../components/Banner';
 import { SegmentedControl } from '../../../components/SegmentedControl';
+import { chooseAndUploadImage } from '../../../components/ImagePickerSheet';
+import { imagesConfigured } from '../../../lib/cloudinaryConfig';
+import { setOwnPhoto } from '../../../services/users';
 
 export default function AccountScreen() {
   const { profile, signOut } = useAuth();
   const { users, expenses } = useData();
   const { c, isDark, preference, setPreference } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const me = profile!;
   const isAdmin = me.role === 'superadmin';
@@ -40,6 +45,29 @@ export default function AccountScreen() {
     );
   };
 
+  const savePhoto = async (url: string | null) => {
+    setPhotoError(null);
+    try {
+      await setOwnPhoto(me, url);
+    } catch {
+      // The upload worked and the profile write did not, so the picture exists
+      // on Cloudinary but nobody can see it. Say so rather than appearing to
+      // succeed.
+      setPhotoError('The photo uploaded but could not be saved to your profile. Try again.');
+    }
+  };
+
+  const changePhoto = () => {
+    chooseAndUploadImage({
+      kind: 'avatar',
+      title: me.photoUrl ? 'Change your picture' : 'Add a picture',
+      onRemove: me.photoUrl ? () => { void savePhoto(null); } : undefined,
+      onPicked: (url) => { void savePhoto(url); },
+      onError: setPhotoError,
+      onBusyChange: setPhotoBusy,
+    });
+  };
+
   const copyEmail = async () => {
     await Clipboard.setStringAsync(me.email);
     setCopied(true);
@@ -52,7 +80,24 @@ export default function AccountScreen() {
         <Text variant="title">Account</Text>
 
         <Card style={styles.profileCard}>
-          <Avatar uid={me.uid} name={me.displayName} size={64} />
+          {imagesConfigured ? (
+            <Pressable
+              onPress={changePhoto}
+              disabled={photoBusy}
+              accessibilityRole="button"
+              accessibilityLabel={me.photoUrl ? 'Change your profile picture' : 'Add a profile picture'}
+              style={({ pressed }) => ({ opacity: pressed || photoBusy ? 0.6 : 1 })}
+            >
+              <Avatar uid={me.uid} name={me.displayName} size={64} />
+              <View style={[styles.cameraBadge, { backgroundColor: c.primary, borderColor: c.card }]}>
+                {photoBusy
+                  ? <ActivityIndicator size="small" color={c.onPrimary} />
+                  : <Camera size={13} color={c.onPrimary} strokeWidth={2.6} />}
+              </View>
+            </Pressable>
+          ) : (
+            <Avatar uid={me.uid} name={me.displayName} size={64} />
+          )}
           <View style={styles.profileText}>
             <Text variant="heading" numberOfLines={1}>{me.displayName}</Text>
             <Text variant="small" tone="muted" numberOfLines={1}>{me.email}</Text>
@@ -67,6 +112,10 @@ export default function AccountScreen() {
 
         {copied ? (
           <Banner tone="success" title="Email copied" message="Paste it wherever you need it." />
+        ) : null}
+
+        {photoError ? (
+          <Banner tone="error" title="Picture not changed" message={photoError} />
         ) : null}
 
         <View style={styles.section}>
@@ -157,6 +206,11 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, paddingBottom: space.huge, gap: space.md },
   profileCard: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   profileText: { flex: 1, gap: 2 },
+  cameraBadge: {
+    position: 'absolute', right: -2, bottom: -2,
+    width: 24, height: 24, borderRadius: 12, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
   roleChip: {
     flexDirection: 'row', alignItems: 'center', gap: space.xs,
     alignSelf: 'flex-start', marginTop: space.xs,

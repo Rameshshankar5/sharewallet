@@ -74,7 +74,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const unsubs = [
       onSnapshot(usersCol(), (snap) => merge({
-        users: snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserProfile)),
+        // Rows written before a field existed read as the absence of it,
+        // not as undefined — every consumer can then treat them alike.
+        users: snap.docs.map((d) => ({
+          uid: d.id, photoUrl: null, ...d.data(),
+        } as UserProfile)),
         ready: { users: true } as Store['ready'],
       })),
 
@@ -94,7 +98,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           limit(EXPENSE_PAGE),
         ),
         (snap) => merge({
-          expenses: snap.docs.map((d) => ({ id: d.id, ...d.data() } as Expense)),
+          expenses: snap.docs.map((d) => ({
+            id: d.id, receiptUrl: null, ...d.data(),
+          } as Expense)),
           ready: { expenses: true } as Store['ready'],
         }),
       ),
@@ -166,4 +172,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
 export function useData() {
   return useContext(DataContext);
+}
+
+/**
+ * The data context if there is one, otherwise null.
+ *
+ * `useData()` is the right call inside the app. This exists for shared
+ * components — Avatar above all — that want a person's picture when they are
+ * rendered inside the app, but must still draw on the login screen, where
+ * there is no provider and no session to look anything up in.
+ */
+export function useDataOptional(): DataValue | null {
+  return useContext(DataContext) ?? null;
 }

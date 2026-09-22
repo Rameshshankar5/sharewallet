@@ -108,6 +108,7 @@ export async function createExpense(
     splitMode: input.splitMode,
     participantIds,
     viewerIds,
+    receiptUrl: input.receiptUrl,
     date: input.date,
     createdBy: actor.uid,
     createdAt: now,
@@ -183,6 +184,7 @@ export async function updateExpense(
       payers: input.payers,
       splits: input.splits,
       roomId: input.roomId,
+      receiptUrl: input.receiptUrl,
       date: input.date,
     };
 

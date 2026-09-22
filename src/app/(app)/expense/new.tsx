@@ -29,6 +29,8 @@ import { ChipRow } from '../../../components/ChipRow';
 import { PersonToggle } from '../../../components/PersonToggle';
 import { AmountRow } from '../../../components/AmountRow';
 import { DateField } from '../../../components/DateField';
+import { ReceiptField } from '../../../components/ReceiptField';
+import { imagesConfigured } from '../../../lib/cloudinaryConfig';
 import { Loading } from '../../../components/Loading';
 import { CATEGORIES } from '../../../components/icons';
 import type { Expense, ExpenseCategory } from '../../../types';
@@ -79,6 +81,8 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
   // populated on its first render.
   const [description, setDescription] = useState(() => existing?.description ?? '');
   const [note, setNote] = useState(() => existing?.note ?? '');
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(() => existing?.receiptUrl ?? null);
+  const [uploading, setUploading] = useState(false);
   const [category, setCategory] = useState<ExpenseCategory>(() => existing?.category ?? 'general');
   const [roomId, setRoomId] = useState<string | null>(() => existing?.roomId ?? params.roomId ?? null);
   const [date, setDate] = useState(() => existing?.date ?? Date.now());
@@ -206,6 +210,9 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
     orderedSplitIds.length > 0 &&
     payerCheck.balanced &&
     splitCheck.balanced &&
+    // Saving mid-upload would store the expense without the photo that is
+    // seconds from being ready, and there is no second chance to notice.
+    !uploading &&
     !saving;
 
   // ----------------------------------------------------------------- edits
@@ -263,7 +270,7 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
       const payload = {
         description, note, category, totalCents,
         payers: payerCents, splits: splitCents,
-        roomId, date, splitMode,
+        roomId, date, splitMode, receiptUrl,
       };
 
       if (editing && existing) {
@@ -567,8 +574,17 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
             </Card>
           </View>
 
-          {/* ------------------------------------------------------------ note */}
+          {/* -------------------------------------------------- receipt + note */}
           <Card style={styles.block}>
+            {imagesConfigured ? (
+              <ReceiptField
+                value={receiptUrl}
+                onChange={setReceiptUrl}
+                busy={uploading}
+                onBusyChange={setUploading}
+                onError={setFormError}
+              />
+            ) : null}
             <Input
               label="Note (optional)"
               value={note}

@@ -207,3 +207,52 @@ test('deleted expenses and payments are ignored by a room ledger', () => {
   ];
   assert.equal(buildRoomLedger(expenses, settlements, 'r1').netFor('me'), 1000);
 });
+
+/**
+ * Cloudinary URL building. Cheap to get subtly wrong, and a mangled URL shows
+ * up as a broken image rather than an error anyone would notice.
+ */
+const {
+  withTransform, avatarUrl, receiptThumbUrl, receiptFullUrl,
+} = require('../.math-build/cloudinary');
+
+const UPLOADED =
+  'https://res.cloudinary.com/szpl750m/image/upload/v1737550000/receipts/abc123.jpg';
+
+test('a transformation is inserted after /upload/', () => {
+  assert.equal(
+    withTransform(UPLOADED, 'f_auto,q_auto'),
+    'https://res.cloudinary.com/szpl750m/image/upload/f_auto,q_auto/v1737550000/receipts/abc123.jpg',
+  );
+});
+
+test('nothing is invented when there is no URL', () => {
+  assert.equal(withTransform(null, 'f_auto'), null);
+  assert.equal(withTransform(undefined, 'f_auto'), null);
+  assert.equal(withTransform('', 'f_auto'), null);
+  assert.equal(avatarUrl(null, 64), null);
+  assert.equal(receiptThumbUrl(null, 80), null);
+  assert.equal(receiptFullUrl(null), null);
+});
+
+test('a URL that is not a Cloudinary delivery URL is left alone', () => {
+  // Older rows, or anything hand-entered, must not be silently corrupted.
+  const foreign = 'https://example.com/photo.jpg';
+  assert.equal(withTransform(foreign, 'f_auto'), foreign);
+});
+
+test('avatars are square, face-aware and asked for at retina size', () => {
+  const url = avatarUrl(UPLOADED, 64);
+  assert.ok(url.includes('c_fill'), 'square crop');
+  assert.ok(url.includes('g_face'), 'keeps the face in frame');
+  assert.ok(url.includes('w_192,h_192'), '64pt at 3x');
+});
+
+test('receipts are fitted, never cropped', () => {
+  // A cropped receipt loses the total off the bottom, which is the one line
+  // anybody opened it for.
+  const thumb = receiptThumbUrl(UPLOADED, 84);
+  assert.ok(thumb.includes('c_fit'));
+  assert.ok(!thumb.includes('c_fill'));
+  assert.ok(receiptFullUrl(UPLOADED).includes('f_auto,q_auto'));
+});

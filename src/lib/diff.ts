@@ -31,6 +31,7 @@ export interface ExpenseDraft {
   payers: CentMap;
   splits: CentMap;
   roomId: string | null;
+  receiptUrl: string | null;
   date: number;
 }
 
@@ -118,6 +119,17 @@ export function diffExpense(
     });
   }
 
+  if ((before.receiptUrl || null) !== (after.receiptUrl || null)) {
+    // The URL itself would be noise in a log people actually read.
+    lines.push({
+      field: 'receiptUrl',
+      kind: !before.receiptUrl ? 'added' : !after.receiptUrl ? 'removed' : 'changed',
+      label: 'Receipt photo',
+      before: before.receiptUrl ? 'Attached' : null,
+      after: after.receiptUrl ? 'Attached' : null,
+    });
+  }
+
   if ((before.note || '') !== (after.note || '')) {
     lines.push({
       field: 'note', kind: 'changed', label: 'Note',
@@ -140,6 +152,7 @@ export function draftFromExpense(e: Expense): ExpenseDraft {
     payers: { ...e.payers },
     splits: { ...e.splits },
     roomId: e.roomId,
+    receiptUrl: e.receiptUrl ?? null,
     date: e.date,
   };
 }

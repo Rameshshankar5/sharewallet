@@ -20,6 +20,7 @@ import { Money } from '../../../components/Money';
 import { Avatar } from '../../../components/Avatar';
 import { ListRow } from '../../../components/ListRow';
 import { SectionHeader } from '../../../components/SectionHeader';
+import { ReceiptViewer, ReceiptCaption } from '../../../components/ReceiptViewer';
 import { Banner } from '../../../components/Banner';
 import { Button } from '../../../components/Button';
 import { AuditCard } from '../../../components/AuditCard';
@@ -173,6 +174,14 @@ export default function ExpenseDetailScreen() {
           </View>
         </Card>
 
+        {expense.receiptUrl ? (
+          <Card style={styles.receipt}>
+            <Text variant="label" tone="muted">RECEIPT</Text>
+            <ReceiptViewer url={expense.receiptUrl} />
+            <ReceiptCaption />
+          </Card>
+        ) : null}
+
         {expense.note ? (
           <Card>
             <Text variant="label" tone="muted">NOTE</Text>
@@ -281,6 +290,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch', alignItems: 'center', gap: 2,
     marginTop: space.lg, padding: space.md, borderRadius: radius.md,
   },
+  receipt: { gap: space.sm },
   note: { marginTop: space.xs },
   history: { gap: space.sm },
   danger: { marginTop: space.lg },

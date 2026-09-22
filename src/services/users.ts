@@ -55,6 +55,7 @@ export async function createMemberAccount(
       email: input.email.trim().toLowerCase(),
       displayName: input.displayName.trim(),
       role: input.role,
+      photoUrl: null,
       active: true,
       mustChangePassword: true,
       createdAt: Date.now(),
@@ -139,4 +140,39 @@ export async function changeOwnPassword(
   await reauthenticateWithCredential(user, cred);
   await updatePassword(user, newPassword);
   await updateDoc(userDoc(user.uid), { mustChangePassword: false });
+}
+
+/**
+ * Set or clear your own picture.
+ *
+ * Only ever your own: firestore.rules lets a member change `photoUrl` on their
+ * own document and nothing else, so nobody can put a photo on someone else's
+ * profile. It is audited like any other change, because a face on a row that
+ * decides who owes what is worth a record.
+ */
+export async function setOwnPhoto(
+  actor: UserProfile,
+  photoUrl: string | null,
+) {
+  if ((actor.photoUrl ?? null) === photoUrl) return;
+
+  const batch = writeBatch(db());
+  batch.update(userDoc(actor.uid), { photoUrl });
+  writeAudit(batch, {
+    action: 'user.update',
+    byUid: actor.uid,
+    byName: actor.displayName,
+    targetId: actor.uid,
+    targetLabel: actor.displayName,
+    roomId: null,
+    viewerIds: [actor.uid],
+    changes: [{
+      field: 'photoUrl',
+      kind: photoUrl ? (actor.photoUrl ? 'changed' : 'added') : 'removed',
+      label: 'Profile picture',
+      before: actor.photoUrl ? 'Set' : null,
+      after: photoUrl ? 'Set' : null,
+    }],
+  });
+  await batch.commit();
 }
