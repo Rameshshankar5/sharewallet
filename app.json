@@ -2,7 +2,7 @@
   "expo": {
     "name": "1-1-1",
     "slug": "sharewallet",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sharewallet",
@@ -18,13 +18,16 @@
     },
     "android": {
       "package": "com.sharewallet.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "predictiveBackGestureEnabled": false,
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -60,11 +63,19 @@
           "color": "#0942A6",
           "defaultChannel": "expenses"
         }
-      ]
+      ],
+      "./plugins/withReleaseSigning"
     ],
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "98057257-1c66-4fdb-9ea3-741b0aef0a52"
+      }
+    },
+    "owner": "rameshshankar"
   }
 }
