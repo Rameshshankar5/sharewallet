@@ -66,3 +66,4 @@ service-account*.json
 
 # Firebase CLI deploy cache
 .firebase/
+*-debug.log

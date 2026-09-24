@@ -41,6 +41,7 @@
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
@@ -53,8 +54,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "sh scripts/build-math.sh && node --test tests/",
-    "typecheck": "tsc --noEmit"
+    "test": "sh scripts/build-math.sh && node --test tests/math.test.js",
+    "typecheck": "tsc --noEmit",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-sharewallet \"node --test tests/rules/rules.test.mjs\""
   },
   "private": true
 }

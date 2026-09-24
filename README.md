@@ -173,6 +173,14 @@ Two things to check with your friend first:
 
 Builds are free on the EAS free tier, just queued behind paying users.
 
+## Setting up on another computer
+
+- **New Windows or Mac computer, Android builds:** [docs/NEW_PC_SETUP.md](docs/NEW_PC_SETUP.md)
+- **iPhone build on a Mac with Xcode:** [docs/IOS_GUIDE.md](docs/IOS_GUIDE.md)
+
+The secret files these need (`.env`, the release keystore, and so on) are
+deliberately not in this repository; they travel separately.
+
 ---
 
 ## How it works
