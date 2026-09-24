@@ -171,9 +171,14 @@ The APK is at `android/app/build/outputs/apk/release/app-release.apk`
 will not install over the existing app on anyone's phone:
 
 ```bash
-keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk | grep SHA256
-# SHA256: 3B:4F:E9:7F:83:88:63:BB:…   ← must start like this
+# apksigner comes with the Android SDK build tools (Windows: apksigner.bat)
+"$ANDROID_HOME"/build-tools/36.0.0/apksigner verify --print-certs \
+  android/app/build/outputs/apk/release/app-release.apk | grep SHA-256
+# Signer #1 certificate SHA-256 digest: 3b4fe97f838863bb…   ← must start like this
 ```
+
+(`keytool -printcert -jarfile` prints nothing for these APKs — they use the
+newer signature format it cannot read.)
 
 If it shows a different fingerprint, `credentials/` is missing or in the
 wrong place.
