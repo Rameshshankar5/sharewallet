@@ -35,6 +35,54 @@ export interface Room {
   createdAt: number;
   updatedAt: number;
   archived: boolean;
+  /**
+   * Who the most recent addition was. Rules can't loop over an array, so a
+   * member is added one write at a time and this names them, which is what
+   * lets the rule check that the person adding them is actually connected.
+   */
+  addedId?: string | null;
+  /** Set when somebody let themselves in with an invite link. */
+  joinInviteId?: string | null;
+}
+
+/**
+ * Two people who can see each other.
+ *
+ * The document ID is both uids, sorted and joined with `_`, so a pair can only
+ * ever have one row and the rules can check for it with a single lookup.
+ */
+export interface Connection {
+  id: string;
+  /** Exactly two uids, sorted. */
+  memberIds: string[];
+  /** How they met: a friend link, sharing a room, or the admin. */
+  via: 'invite' | 'room' | 'admin';
+  inviteId: string | null;
+  roomId: string | null;
+  createdBy: string;
+  createdAt: number;
+}
+
+export type InviteKind = 'friend' | 'room';
+
+/**
+ * A shareable link. The document ID is the code in the URL, long enough that
+ * it cannot be guessed, and it can be used by as many people as it is sent to
+ * until it expires or its owner switches it off.
+ */
+export interface Invite {
+  id: string;
+  kind: InviteKind;
+  createdBy: string;
+  /** Snapshotted: the person opening the link cannot see the profile yet. */
+  createdByName: string;
+  createdByPhoto: string | null;
+  roomId: string | null;
+  roomName: string | null;
+  roomIcon: string | null;
+  createdAt: number;
+  expiresAt: number;
+  revoked: boolean;
 }
 
 export type ExpenseCategory =

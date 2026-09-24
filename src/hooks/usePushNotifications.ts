@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { pushConfigured, registerForPush } from '../services/push';
+import { autoRegisterForPush, pushConfigured } from '../services/push';
 
 /**
  * Notifications arriving while the app is open are still shown.
@@ -31,7 +31,7 @@ Notifications.setNotificationHandler({
 export function usePushNotifications(uid: string | null) {
   useEffect(() => {
     if (!uid || !pushConfigured) return;
-    void registerForPush(uid).catch(() => {});
+    void autoRegisterForPush(uid).catch(() => {});
   }, [uid]);
 
   useEffect(() => {
@@ -43,6 +43,10 @@ export function usePushNotifications(uid: string | null) {
         router.push(`/expense/${data.expenseId}`);
       } else if (data?.type === 'settlement') {
         router.push('/(app)/(tabs)/activity');
+      } else if (data?.type === 'friend' && typeof data.uid === 'string') {
+        router.push(`/friend/${data.uid}`);
+      } else if (data?.type === 'room' && typeof data.roomId === 'string') {
+        router.push(`/room/${data.roomId}`);
       }
     });
     return () => sub.remove();

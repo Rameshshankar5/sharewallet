@@ -9,7 +9,7 @@ import {
 import { deleteApp } from 'firebase/app';
 import { updateDoc, writeBatch } from 'firebase/firestore';
 import { adminWorkerAuth, db } from '../firebase';
-import { userDoc } from './collections';
+import { connectionDoc, userDoc } from './collections';
 import { writeAudit } from './audit';
 import type { UserProfile } from '../types';
 
@@ -31,9 +31,10 @@ export interface CreateUserInput {
  * their own session. We sign the throwaway out immediately and bin the app.
  *
  * Security still holds: firestore.rules only lets the superadmin create a
- * `users/{uid}` profile, and every other rule requires a profile to exist. Even
- * if someone signs up directly against your Firebase project, they land with no
- * profile and can read and write precisely nothing.
+ * profile for somebody else, and every other rule requires a profile to exist.
+ *
+ * The admin and the new account start out connected, so the admin can split
+ * with the friend they just added without sending them an invite as well.
  */
 export async function createMemberAccount(
   input: CreateUserInput,
@@ -65,6 +66,14 @@ export async function createMemberAccount(
 
     const batch = writeBatch(db());
     batch.set(userDoc(uid), profile);
+    batch.set(connectionDoc(actor.uid, uid), {
+      memberIds: [actor.uid, uid].sort(),
+      via: 'admin',
+      inviteId: null,
+      roomId: null,
+      createdBy: actor.uid,
+      createdAt: Date.now(),
+    });
     writeAudit(batch, {
       action: 'user.create',
       byUid: actor.uid,

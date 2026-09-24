@@ -338,3 +338,64 @@ test('only real Expo tokens are treated as sendable', () => {
   assert.ok(!isExpoPushToken(null));
   assert.ok(!isExpoPushToken(''));
 });
+
+// ---------------------------------------------------------------- calculator
+const { evaluate, press, prettyExpression } = require('../.math-build/calc');
+
+const typed = (keys) => keys.reduce((expr, k) => press(expr, k), '');
+const cents = (expr) => {
+  const r = evaluate(expr);
+  return r.kind === 'ok' ? r.cents : r.kind;
+};
+
+test('calculator: the sums people actually do at the till', () => {
+  assert.equal(cents('1200+350*2'), 190000);
+  assert.equal(cents('1200+350+700'), 225000);
+  assert.equal(cents('5000-1250'), 375000);
+  assert.equal(cents('4500/3'), 150000);
+  assert.equal(cents('99.99*3'), 29997);
+  assert.equal(cents('0.1+0.2'), 30);
+  // Rounded once at the end, not at every step.
+  assert.equal(cents('1000/3*3'), 100000);
+  assert.equal(cents('100/3'), 3333);
+  assert.equal(cents('200/3'), 6667);
+});
+
+test('calculator: × and ÷ before + and −', () => {
+  assert.equal(cents('2+3*4'), 1400);
+  assert.equal(cents('20-10/2'), 1500);
+  assert.equal(cents('10/2*3+1'), 1600);
+  assert.equal(cents('100-20-30'), 5000); // left to right
+  assert.equal(cents('64/4/2'), 800);
+});
+
+test('calculator: half-typed and broken input', () => {
+  assert.equal(cents(''), 'empty');
+  assert.equal(cents('1200+'), 120000); // trailing operator ignored while typing
+  assert.equal(cents('12.'), 1200);
+  assert.equal(cents('5/0'), 'error');
+  assert.equal(cents('5+/2'), 'error');
+  assert.equal(cents('*5'), 'error');
+  assert.equal(cents('abc'), 'error');
+  assert.equal(cents('1.2.3'), 'error');
+  assert.equal(cents('100-250'), -15000); // the sheet refuses negatives, not the maths
+});
+
+test('calculator keypad keeps the expression well formed', () => {
+  assert.equal(typed(['+']), '');                      // cannot start with an operator
+  assert.equal(typed(['5', '+', '*']), '5*');          // changing operator replaces it
+  assert.equal(typed(['.', '5']), '0.5');
+  assert.equal(typed(['1', '.', '5', '.', '5']), '1.55'); // one point per number
+  assert.equal(typed(['1', '.', '2', '5', '9']), '1.25'); // cents only
+  assert.equal(typed(['0', '0', '7']), '7');             // no leading zeros
+  assert.equal(typed(['00']), '0');
+  assert.equal(typed(['1', '00']), '100');
+  assert.equal(typed(['1', '2', '.', '+', '3']), '12+3');
+  assert.equal(typed(['1', '2', 'back']), '1');
+  assert.equal(typed(['1', '+', '2', 'C']), '');
+});
+
+test('calculator display groups thousands and uses real signs', () => {
+  assert.equal(prettyExpression('1200+350*2'), '1,200 + 350 \u00d7 2');
+  assert.equal(prettyExpression('1000000.5/4-3'), '1,000,000.5 \u00f7 4 \u2212 3');
+});

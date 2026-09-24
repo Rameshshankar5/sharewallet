@@ -10,13 +10,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { unregisterFromPush } from '../services/push';
 import { auth, isConfigured } from '../firebase';
 import { userDoc } from '../services/collections';
+import { retrying } from '../services/retrying';
+import { clearSnapshot, LAST_UID_KEY } from '../services/dataCache';
 import type { UserProfile } from '../types';
 
 export type AuthStatus =
   | 'booting'        // restoring the saved session
   | 'unconfigured'   // .env not filled in yet
   | 'signedOut'
-  | 'noProfile'      // authenticated, but the superadmin hasn't granted access
+  | 'verifyEmail'    // signed themselves up; the email link is not tapped yet
+  | 'finishSignup'   // email verified; password and profile still to come
   | 'mustChangePassword'
   | 'disabled'       // account switched off by the superadmin
   | 'ready';
@@ -27,6 +30,11 @@ interface AuthValue {
   profile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Re-read the Firebase user. `emailVerified` only changes on a reload, and
+   * the object reloads in place, so this also tells React it changed.
+   */
+  refreshUser: () => Promise<void>;
   /** Non-null when the last sign-in attempt failed. */
   error: string | null;
   clearError: () => void;
@@ -54,6 +62,8 @@ function friendlyAuthError(code: string): string {
 interface Session {
   resolved: boolean;
   user: User | null;
+  /** Bumped by refreshUser, since a reloaded user is still the same object. */
+  version: number;
 }
 
 /**
@@ -102,13 +112,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session>(() => ({
     resolved: !isConfigured,
     user: null,
+    version: 0,
   }));
   const [snapshot, setSnapshot] = useState<ProfileSnapshot>(NO_PROFILE);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Whoever had the app open last time, with the profile saved for them.
+   *
+   * Firebase Auth checks the saved session with the server before it answers,
+   * which on a slow network is several seconds of "Signing you in…" for
+   * somebody who is plainly still signed in. Opening on this instead shows the
+   * app at once. It grants nothing: every read and write still needs the real
+   * session, and if Auth comes back signed out, this is dropped.
+   */
+  const [early, setEarly] = useState<{ done: boolean; profile: UserProfile | null }>(
+    { done: false, profile: null },
+  );
   useEffect(() => {
     if (!isConfigured) return;
-    return onAuthStateChanged(auth(), (u) => setSession({ resolved: true, user: u }));
+    void (async () => {
+      const lastUid = await AsyncStorage.getItem(LAST_UID_KEY).catch(() => null);
+      const cached = lastUid ? await readCachedProfile(lastUid) : null;
+      setEarly({ done: true, profile: cached });
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!isConfigured) return;
+    return onAuthStateChanged(auth(), (u) => setSession((s) => ({
+      resolved: true, user: u, version: s.version + 1,
+    })));
   }, []);
 
   // A live subscription rather than a one-off read: if the superadmin disables
@@ -129,13 +163,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : { uid, profile: cached, loaded: true }));
     });
 
-    return onSnapshot(
+    // Whether the server has confirmed this profile exists. Edits to a
+    // profile it already has can show straight away.
+    let onServer = false;
+
+    return retrying((fail) => onSnapshot(
       userDoc(uid),
+      { includeMetadataChanges: true },
       (snap) => {
         const profile = snap.exists()
           ? ({ uid: snap.id, ...snap.data() } as UserProfile)
           : null;
+        // A profile this phone has only just written — the last step of
+        // signing up — exists locally before it exists on the server. Letting
+        // people in on the local copy starts every other listener early, and
+        // the server refuses them all because, as far as it knows, there is
+        // no profile yet. Wait for the server to confirm it.
+        if (profile && snap.metadata.hasPendingWrites && !onServer) return;
+        // "Not found" from the phone's own cache only means the server has not
+        // answered yet. Treating it as "no profile" sent existing accounts to
+        // the sign-up screens and wiped their cached profile. Only the server
+        // gets to say a profile is missing.
+        if (!profile && snap.metadata.fromCache) return;
+        if (profile && !snap.metadata.hasPendingWrites) onServer = true;
         setSnapshot({ uid, profile, loaded: true });
+        if (profile && !snap.metadata.fromCache) {
+          void AsyncStorage.setItem(LAST_UID_KEY, uid).catch(() => {});
+        }
         // Keep the cache honest, including removing it for an account whose
         // profile has gone, so the next launch does not open on a ghost.
         void (profile
@@ -144,30 +198,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ).catch(() => {});
       },
       // An error here means we could not reach Firestore, not that the profile
-      // is gone. Keep whatever the cache gave us instead of ejecting someone
-      // from an app that was working a second ago.
-      () => setSnapshot((prev) => (prev.uid === uid && prev.loaded
-        ? prev
-        : { uid, profile: null, loaded: true })),
-    );
+      // is gone. Keep whatever the cache gave us and try again. With nothing
+      // cached, stay on "Signing you in…" rather than guess: guessing "no
+      // profile" puts an existing account on the sign-up screens.
+      fail,
+    ));
   }, [session.user]);
 
   // Anything left over from a previous account is ignored by uid, so signing
   // out can never briefly show the next person the last person's data.
   const matches = !!session.user && snapshot.uid === session.user.uid;
-  const profile = matches ? snapshot.profile : null;
   const profileLoaded = matches && snapshot.loaded;
+  // Until the live profile is in, the saved one stands in: before Auth has
+  // answered, and after, provided Auth answered with the same account. Only a
+  // profile that could use the app anyway, so a paused account never flashes
+  // in. Dropping it the moment Auth answers would bounce the app back to the
+  // loading screen for the instant before the live profile arrives.
+  const usable = early.profile?.active && !early.profile.mustChangePassword ? early.profile : null;
+  const earlyProfile = usable && !profileLoaded
+    && (!session.resolved || session.user?.uid === usable.uid)
+    ? usable
+    : null;
+  const profile = profileLoaded ? snapshot.profile : earlyProfile;
 
   const status: AuthStatus = useMemo(() => {
     if (!isConfigured) return 'unconfigured';
-    if (!session.resolved) return 'booting';
+    if (!session.resolved) return earlyProfile ? 'ready' : 'booting';
     if (!session.user) return 'signedOut';
-    if (!profileLoaded) return 'booting';
-    if (!profile) return 'noProfile';
+    if (!profileLoaded) return earlyProfile ? 'ready' : 'booting';
+    // No profile yet means someone part-way through signing themselves up.
+    // Accounts the admin makes always get their profile in the same step.
+    if (!profile) return session.user.emailVerified ? 'finishSignup' : 'verifyEmail';
     if (!profile.active) return 'disabled';
     if (profile.mustChangePassword) return 'mustChangePassword';
     return 'ready';
-  }, [session.resolved, session.user, profile, profileLoaded]);
+    // session.version stands in for the user's emailVerified, which changes
+    // in place on reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.resolved, session.user, session.version, profile, profileLoaded, earlyProfile]);
 
   const value = useMemo<AuthValue>(() => ({
     status,
@@ -185,6 +253,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw e;
       }
     },
+    refreshUser: async () => {
+      const u = auth().currentUser;
+      if (!u) return;
+      await u.reload();
+      setSession((s) => ({ ...s, user: auth().currentUser, version: s.version + 1 }));
+    },
     signOut: async () => {
       // Drop this device's push token and the cached profile first: signing
       // out then failing to clear either would leave the next launch opening
@@ -194,6 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (uid) {
         await unregisterFromPush(uid);
         await AsyncStorage.removeItem(profileKey(uid)).catch(() => {});
+        await clearSnapshot(uid);
       }
       await fbSignOut(auth());
     },

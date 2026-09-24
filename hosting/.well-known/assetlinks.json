@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sharewallet.app",
+      "sha256_cert_fingerprints": [
+        "3B:4F:E9:7F:83:88:63:BB:DC:75:BD:C7:47:B7:BA:4D:03:46:38:00:EA:90:C0:89:38:41:83:09:42:2E:50:00"
+      ]
+    }
+  }
+]

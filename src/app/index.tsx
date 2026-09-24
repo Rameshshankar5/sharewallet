@@ -22,6 +22,10 @@ export default function Index() {
       return <Redirect href="/change-password" />;
     case 'signedOut':
       return <Redirect href="/login" />;
+    case 'verifyEmail':
+      return <Redirect href="/verify-email" />;
+    case 'finishSignup':
+      return <Redirect href="/finish-signup" />;
     default:
       return <Redirect href="/blocked" />;
   }

@@ -1,4 +1,4 @@
-import { doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDocs, query, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { roomsCol, roomDoc, expensesCol } from './collections';
 import { writeAudit } from './audit';
@@ -10,19 +10,37 @@ export interface RoomInput {
   memberIds: string[];
 }
 
+/**
+ * Add one person to a room.
+ *
+ * One write each, because the rules check every addition against a
+ * connection and rules cannot loop over a list. That is what stops anybody
+ * putting a stranger in a room to get sight of them.
+ */
+async function addMember(roomId: string, uid: string) {
+  await updateDoc(roomDoc(roomId), {
+    memberIds: arrayUnion(uid),
+    addedId: uid,
+    updatedAt: Date.now(),
+  });
+}
+
 export async function createRoom(input: RoomInput, actor: UserProfile): Promise<string> {
   const ref = doc(roomsCol());
   const now = Date.now();
   const memberIds = Array.from(new Set([...input.memberIds, actor.uid])).sort();
 
+  // Created with just its creator, then filled one person at a time.
   const room: Omit<Room, 'id'> = {
     name: input.name.trim(),
     icon: input.icon,
-    memberIds,
+    memberIds: [actor.uid],
     createdBy: actor.uid,
     createdAt: now,
     updatedAt: now,
     archived: false,
+    addedId: null,
+    joinInviteId: null,
   };
 
   const batch = writeBatch(db());
@@ -42,6 +60,10 @@ export async function createRoom(input: RoomInput, actor: UserProfile): Promise<
     }],
   });
   await batch.commit();
+
+  for (const uid of memberIds) {
+    if (uid !== actor.uid) await addMember(ref.id, uid);
+  }
   return ref.id;
 }
 
@@ -67,9 +89,18 @@ export async function updateRoom(
 
   if (!added.length && !removed.length && !renamed && !reIcon) return;
 
+  // Additions first, each on its own. If one is refused, nothing else about
+  // the room has changed yet, and the ones already added are real members.
+  for (const uid of added) await addMember(room.id, uid);
+
   const batch = writeBatch(db());
+  // Removals only, as a removal: writing the whole list back would also drop
+  // anybody who joined by link while this screen was open.
   batch.update(roomDoc(room.id), {
-    name, icon: input.icon, memberIds, updatedAt: Date.now(),
+    name,
+    icon: input.icon,
+    ...(removed.length ? { memberIds: arrayRemove(...removed) } : {}),
+    updatedAt: Date.now(),
   });
 
   if (added.length || removed.length) {

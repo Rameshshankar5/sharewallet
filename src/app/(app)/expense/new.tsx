@@ -27,6 +27,8 @@ import { SectionHeader } from '../../../components/SectionHeader';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { ChipRow } from '../../../components/ChipRow';
 import { PersonToggle } from '../../../components/PersonToggle';
+import { CalculatorButton } from '../../../components/CalculatorButton';
+import { useCalculator } from '../../../components/CalculatorSheet';
 import { AmountRow } from '../../../components/AmountRow';
 import { DateField } from '../../../components/DateField';
 import { ReceiptField } from '../../../components/ReceiptField';
@@ -34,7 +36,7 @@ import { imagesConfigured } from '../../../lib/cloudinaryConfig';
 import { notifyExpense } from '../../../services/notify';
 import { Loading } from '../../../components/Loading';
 import { CATEGORIES } from '../../../components/icons';
-import type { Expense, ExpenseCategory } from '../../../types';
+import type { Expense, ExpenseCategory, UserProfile } from '../../../types';
 
 type PayerMode = 'single' | 'multiple';
 
@@ -71,11 +73,12 @@ export default function ExpenseFormScreen() {
 
 function ExpenseForm({ existing, params }: { existing?: Expense; params: Params }) {
   const { profile } = useAuth();
-  const { rooms, users, usersById, nameOf, roomNameOf } = useData();
+  const { rooms, friends, usersById, nameOf, roomNameOf } = useData();
   const { c } = useTheme();
 
   const me = profile!.uid;
   const editing = !!existing;
+  const calc = useCalculator();
 
   // ---------------------------------------------------------------- fields
   // Every field is seeded lazily from `existing`, so an edit opens fully
@@ -136,14 +139,22 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
    * accidentally include someone who then can't see it.
    */
   const candidates = useMemo(() => {
-    const pool = users.filter((u) => u.active);
-    const scoped = room ? pool.filter((u) => room.memberIds.includes(u.uid)) : pool;
-    return [...scoped].sort((a, b) => {
+    // Outside a room, the people you are connected to. Inside one, its
+    // members — everyone in a room is connected, so they are all loaded.
+    const everyone = [profile!, ...friends];
+    const scoped = room
+      ? room.memberIds.map((id) => usersById[id]).filter((u): u is UserProfile => !!u && u.active)
+      : everyone;
+    // Editing an old expense must still show everyone already on it.
+    const onIt = existing ? existing.participantIds : [];
+    const pool = new Map(scoped.map((u) => [u.uid, u]));
+    onIt.forEach((id) => { if (usersById[id] && !pool.has(id)) pool.set(id, usersById[id]); });
+    return [...pool.values()].sort((a, b) => {
       if (a.uid === me) return -1;
       if (b.uid === me) return 1;
       return a.displayName.localeCompare(b.displayName);
     });
-  }, [users, room, me]);
+  }, [profile, friends, usersById, room, me, existing]);
 
   const selectRoom = (next: string | null) => {
     setRoomId(next);
@@ -364,6 +375,16 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
               inputMode="decimal"
               placeholder="0.00"
               required
+              accessory={
+                <CalculatorButton
+                  label="Work out the total with the calculator"
+                  onPress={() => calc.open({
+                    title: 'Total amount',
+                    initialText: totalText,
+                    onUse: setTotalText,
+                  })}
+                />
+              }
             />
 
             <ChipRow<ExpenseCategory>
@@ -454,6 +475,11 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
                             isYou={u.uid === me}
                             value={payerText[u.uid] ?? ''}
                             onChangeText={(t) => setPayerText((p) => ({ ...p, [u.uid]: t }))}
+                            onCalculator={() => calc.open({
+                              title: u.uid === me ? 'What you paid' : `What ${u.displayName} paid`,
+                              initialText: payerText[u.uid] ?? '',
+                              onUse: (t) => setPayerText((p) => ({ ...p, [u.uid]: t })),
+                            })}
                           />
                         ))}
                     </View>
@@ -558,6 +584,11 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
                           isYou={uid === me}
                           value={locked ? (exactText[uid] ?? '') : centsToInput(splitCents[uid] ?? 0)}
                           onChangeText={(t) => editSplitAmount(uid, t)}
+                          onCalculator={() => calc.open({
+                            title: uid === me ? 'Your share' : `${name}'s share`,
+                            initialText: locked ? (exactText[uid] ?? '') : centsToInput(splitCents[uid] ?? 0),
+                            onUse: (t) => editSplitAmount(uid, t),
+                          })}
                           locked={locked}
                           onUnlock={() => unlockSplit(uid)}
                           hint={locked ? 'set by you' : splitMode === 'equal' ? 'equal share' : 'auto'}
@@ -644,6 +675,7 @@ function ExpenseForm({ existing, params }: { existing?: Expense; params: Params 
           />
         </View>
       </KeyboardAvoidingView>
+      {calc.sheet}
     </Screen>
   );
 }

@@ -6,6 +6,7 @@ import { font, radius, space, HIT } from '../theme/tokens';
 import { CURRENCY_SYMBOL } from '../lib/money';
 import { Avatar } from './Avatar';
 import { Text } from './Text';
+import { CalculatorButton } from './CalculatorButton';
 
 interface Props {
   uid: string;
@@ -18,6 +19,8 @@ interface Props {
   locked?: boolean;
   onUnlock?: () => void;
   hint?: string;
+  /** Shows a calculator key beside the amount. */
+  onCalculator?: () => void;
 }
 
 /**
@@ -26,7 +29,7 @@ interface Props {
  * never silently rewrites the number someone else already agreed.
  */
 export function AmountRow({
-  uid, name, isYou, value, onChangeText, locked, onUnlock, hint,
+  uid, name, isYou, value, onChangeText, locked, onUnlock, hint, onCalculator,
 }: Props) {
   const { c } = useTheme();
 
@@ -81,6 +84,10 @@ export function AmountRow({
           ]}
         />
       </View>
+
+      {onCalculator ? (
+        <CalculatorButton onPress={onCalculator} label={`Calculate ${name}'s amount`} />
+      ) : null}
     </View>
   );
 }
@@ -101,7 +108,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    width: 128,
+    width: 116,
     height: 42,
     paddingHorizontal: space.sm,
     borderRadius: radius.sm,

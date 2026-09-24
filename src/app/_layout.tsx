@@ -35,9 +35,10 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
     if (status === 'booting') return;
 
     const top = segments[0];
-    const inApp = top === '(app)';
-    const onGateScreen =
-      top === 'login' || top === 'change-password' || top === 'blocked';
+    // An invite link routes itself once it has put the code somewhere safe.
+    if (top === 'i') return;
+
+    const onGateScreen = top !== '(app)' && top !== undefined;
 
     if (status === 'ready') {
       if (onGateScreen) router.replace('/(app)/(tabs)');
@@ -45,26 +46,16 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
     }
 
     // Everything below is a state the person must resolve before using the
-    // app, so they're pushed out of it and held on the matching screen.
-    if (inApp) {
-      router.replace(
-        status === 'mustChangePassword' ? '/change-password'
-          : status === 'signedOut' ? '/login'
-          : '/blocked',
-      );
-      return;
-    }
-
-    if (status === 'mustChangePassword' && top !== 'change-password') {
-      router.replace('/change-password');
-    } else if (status === 'signedOut' && top !== 'login') {
-      router.replace('/login');
-    } else if (
-      (status === 'noProfile' || status === 'disabled' || status === 'unconfigured')
-      && top !== 'blocked'
-    ) {
-      router.replace('/blocked');
-    }
+    // app, so they're held on the matching screen. Signed out, they may move
+    // between signing in and signing up.
+    const allowed: Record<string, string[]> = {
+      signedOut: ['login', 'signup'],
+      mustChangePassword: ['change-password'],
+      verifyEmail: ['verify-email'],
+      finishSignup: ['finish-signup'],
+    };
+    const here = allowed[status] ?? ['blocked'];
+    if (!here.includes(top ?? '')) router.replace(`/${here[0]}`);
   }, [status, segments, router]);
 
   if (status === 'booting') return <Loading label="Signing you in…" />;
@@ -97,6 +88,10 @@ function Shell() {
         <Stack.Screen name="login" />
         <Stack.Screen name="blocked" />
         <Stack.Screen name="change-password" />
+        <Stack.Screen name="signup" />
+        <Stack.Screen name="verify-email" />
+        <Stack.Screen name="finish-signup" />
+        <Stack.Screen name="i/[code]" />
       </Stack>
     </>
   );

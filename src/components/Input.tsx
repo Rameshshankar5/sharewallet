@@ -21,10 +21,12 @@ interface Props extends Omit<TextInputProps, 'style'> {
   containerStyle?: StyleProp<ViewStyle>;
   /** Fixed text shown inside the field, e.g. the "Rs" on amount inputs. */
   prefix?: string;
+  /** Something tappable at the end of the field, such as a calculator key. */
+  accessory?: React.ReactNode;
 }
 
 export const Input = forwardRef<TextInput, Props>(function Input(
-  { label, helper, error, icon: Icon, password, required, containerStyle, prefix, ...rest },
+  { label, helper, error, icon: Icon, password, required, containerStyle, prefix, accessory, ...rest },
   ref,
 ) {
   const { c } = useTheme();
@@ -77,6 +79,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
               : <Eye size={20} color={c.textMuted} strokeWidth={2} />}
           </Pressable>
         ) : null}
+        {accessory}
       </View>
 
       {error ? (

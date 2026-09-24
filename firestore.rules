@@ -6,13 +6,16 @@ rules_version = '2';
 // through all of them:
 //
 //   1. Having a Firebase login is not access. Access requires a `users/{uid}`
-//      profile document, and only the superadmin can create one. Someone who
-//      finds your API key and signs themselves up lands with no profile and can
-//      read and write nothing.
-//   2. Visibility is denormalised. Every expense, settlement and audit row
+//      profile document. The superadmin can create one for anybody; anybody
+//      else can create only their own, and only once Firebase has confirmed
+//      they own the email address. Until then they can read and write nothing.
+//   2. You see only the people you are connected to. A connection is made by
+//      accepting someone's invite link, by sharing a room, or by the admin.
+//      Open sign-up would otherwise hand every stranger the whole member list.
+//   3. Visibility is denormalised. Every expense, settlement and audit row
 //      carries a `viewerIds` array, so "can this person see this row" is one
 //      indexed check rather than a lookup chain.
-//   3. The audit log is append-only at the database level. Nobody — not even
+//   4. The audit log is append-only at the database level. Nobody — not even
 //      the superadmin — can edit or delete a record of who changed what.
 
 service cloud.firestore {
@@ -49,20 +52,75 @@ service cloud.firestore {
       return isMember() && uid() in resource.data.viewerIds;
     }
 
+    // Everyone in a room sees all of it — including what happened before they
+    // joined, so somebody added to a trip halfway through gets the whole story.
+    function inItsRoom() {
+      return isMember()
+        && resource.data.roomId is string
+        && uid() in roomData(resource.data.roomId).memberIds;
+    }
+
+    // Must match pairId() in src/services/collections.ts.
+    function pairId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+
+    function connectedTo(other) {
+      return exists(/databases/$(database)/documents/connections/$(pairId(uid(), other)));
+    }
+
+    function roomData(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    function inviteData(inviteId) {
+      return get(/databases/$(database)/documents/invites/$(inviteId)).data;
+    }
+
+    function inviteLive(invite) {
+      return invite.revoked == false && invite.expiresAt > request.time.toMillis();
+    }
+
     // --------------------------------------------------------------- users
     //
     // Bootstrapping note: the very first superadmin has to be created by hand
     // in the Firebase console (Authentication -> Add user, then Firestore ->
-    // add a users/<that uid> document with role: "superadmin"). There is
-    // deliberately no self-service path, because that path would also be open
-    // to anyone else.
+    // add a users/<that uid> document with role: "superadmin").
     match /users/{userId} {
-      allow read: if isMember();
+      // Your own document is readable even before it exists or while paused:
+      // that is how the app learns which of those states you are in.
+      allow get: if request.auth != null
+        && (uid() == userId || isAdmin() || (isMember() && connectedTo(userId)));
 
-      allow create: if isAdmin()
-        && request.resource.data.uid == userId
-        && request.resource.data.createdBy == uid()
-        && request.resource.data.role in ['member', 'superadmin'];
+      // Only the admin can list everyone. Everybody else fetches the people
+      // they are connected to one at a time.
+      allow list: if isAdmin();
+
+      allow create: if (isAdmin()
+          && request.resource.data.uid == userId
+          && request.resource.data.createdBy == uid()
+          && request.resource.data.role in ['member', 'superadmin'])
+        // Signing yourself up. Only yourself, only as a plain member, only
+        // with the address Firebase has verified, and nothing that grants
+        // more than a fresh account should have.
+        || (request.auth != null
+          && uid() == userId
+          && request.auth.token.email_verified == true
+          && request.resource.data.keys().hasOnly([
+            'uid', 'email', 'displayName', 'role', 'photoUrl', 'pushTokens',
+            'active', 'mustChangePassword', 'createdAt', 'createdBy'])
+          && request.resource.data.uid == userId
+          && request.resource.data.email == request.auth.token.email.lower()
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.displayName.size() <= 60
+          && request.resource.data.role == 'member'
+          && request.resource.data.active == true
+          && request.resource.data.mustChangePassword == false
+          && request.resource.data.photoUrl == null
+          && request.resource.data.pushTokens.size() == 0
+          && request.resource.data.createdBy == null
+          && request.resource.data.createdAt is int);
 
       // Members may only clear their own first-login password flag, rename
       // themselves, or set their own picture. Role and active status stay in
@@ -80,27 +138,135 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --------------------------------------------------------- connections
+    //
+    // Keyed by the sorted pair of uids, so `connectedTo()` above is one
+    // lookup. You can only ever create a connection that includes yourself,
+    // and only with a reason the rules can check.
+    match /connections/{connId} {
+      allow get: if isMember() && uid() in connId.split('_');
+      allow list: if isMember() && uid() in resource.data.memberIds;
+
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([
+          'memberIds', 'via', 'inviteId', 'roomId', 'createdBy', 'createdAt'])
+        && request.resource.data.memberIds.size() == 2
+        // Sorted, which also rules out connecting to yourself.
+        && request.resource.data.memberIds[0] < request.resource.data.memberIds[1]
+        && connId == request.resource.data.memberIds[0] + '_' + request.resource.data.memberIds[1]
+        && uid() in request.resource.data.memberIds
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.createdAt is int
+        && (
+          // The admin who made an account starts out connected to it.
+          (request.resource.data.via == 'admin' && isAdmin()
+            && request.resource.data.inviteId == null
+            && request.resource.data.roomId == null)
+
+          // Accepting a friend link: the other person is whoever made it, and
+          // it has to still be live.
+          || (request.resource.data.via == 'invite'
+            && request.resource.data.roomId == null
+            && inviteData(request.resource.data.inviteId).kind == 'friend'
+            && inviteLive(inviteData(request.resource.data.inviteId))
+            && inviteData(request.resource.data.inviteId).createdBy != uid()
+            && inviteData(request.resource.data.inviteId).createdBy
+                in request.resource.data.memberIds)
+
+          // Sharing a room: both of you have to be in it.
+          || (request.resource.data.via == 'room'
+            && request.resource.data.inviteId == null
+            && request.resource.data.memberIds[0]
+                in roomData(request.resource.data.roomId).memberIds
+            && request.resource.data.memberIds[1]
+                in roomData(request.resource.data.roomId).memberIds)
+        );
+
+      allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------- invites
+    //
+    // The code in the link is the document ID and is unguessable, so anyone
+    // signed in may open one they were sent — but nobody can list them.
+    match /invites/{inviteId} {
+      allow get: if isMember();
+      allow list: if isMember() && resource.data.createdBy == uid();
+
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([
+          'kind', 'createdBy', 'createdByName', 'createdByPhoto', 'roomId',
+          'roomName', 'roomIcon', 'createdAt', 'expiresAt', 'revoked'])
+        && request.resource.data.createdBy == uid()
+        // The name on the invite is the name on your profile. Nobody sends a
+        // link that claims to come from somebody else.
+        && request.resource.data.createdByName == profile().displayName
+        && request.resource.data.revoked == false
+        && request.resource.data.createdAt is int
+        && request.resource.data.expiresAt is int
+        && (
+          (request.resource.data.kind == 'friend'
+            && request.resource.data.roomId == null)
+          || (request.resource.data.kind == 'room'
+            && uid() in roomData(request.resource.data.roomId).memberIds)
+        );
+
+      // Its owner can switch it off, and nothing else.
+      allow update: if isMember()
+        && resource.data.createdBy == uid()
+        && changedOnly(['revoked'])
+        && request.resource.data.revoked == true;
+
+      allow delete: if false;
+    }
+
     // --------------------------------------------------------------- rooms
+    //
+    // Nobody can put a stranger in a room. A room starts with just its
+    // creator; people then join one write at a time, either added by a member
+    // they are connected to, or letting themselves in with a live invite.
     match /rooms/{roomId} {
       allow read: if isMember() && uid() in resource.data.memberIds;
 
       allow create: if isMember()
         && request.resource.data.createdBy == uid()
-        && uid() in request.resource.data.memberIds;
+        && request.resource.data.memberIds == [uid()];
 
-      // Any member can rename a room or change who is in it — and every such
-      // change is written to the audit log in the same batch.
       allow update: if isMember()
-        && uid() in resource.data.memberIds
         && request.resource.data.createdBy == resource.data.createdBy
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          // A member renaming, archiving, or taking people out.
+          (uid() in resource.data.memberIds
+            && request.resource.data.memberIds.hasOnly(resource.data.memberIds))
+
+          // A member adding exactly one person they are connected to.
+          || (uid() in resource.data.memberIds
+            && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+            && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+            && !(request.resource.data.addedId in resource.data.memberIds)
+            && request.resource.data.addedId in request.resource.data.memberIds
+            && connectedTo(request.resource.data.addedId))
+
+          // Letting yourself in with a room invite, and touching nothing else.
+          || (!(uid() in resource.data.memberIds)
+            && resource.data.archived == false
+            && changedOnly(['memberIds', 'addedId', 'joinInviteId', 'updatedAt'])
+            && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+            && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+            && request.resource.data.addedId == uid()
+            && uid() in request.resource.data.memberIds
+            && inviteData(request.resource.data.joinInviteId).kind == 'room'
+            && inviteData(request.resource.data.joinInviteId).roomId == roomId
+            && inviteLive(inviteData(request.resource.data.joinInviteId)))
+        );
 
       allow delete: if false;
     }
 
     // ------------------------------------------------------------ expenses
     match /expenses/{expenseId} {
-      allow read: if canSee();
+      allow read: if canSee() || inItsRoom();
 
       allow create: if isMember()
         && uid() in request.resource.data.viewerIds
@@ -111,7 +277,7 @@ service cloud.firestore {
         && request.resource.data.totalCents is int
         && request.resource.data.totalCents > 0;
 
-      allow update: if canSee() && (
+      allow update: if (canSee() || inItsRoom()) && (
         // Case 1: room membership changed, so visibility is being re-synced.
         // Nothing about the money moves, so no version bump is required.
         changedOnly(['viewerIds'])
@@ -136,7 +302,7 @@ service cloud.firestore {
 
     // --------------------------------------------------------- settlements
     match /settlements/{settlementId} {
-      allow read: if canSee();
+      allow read: if canSee() || inItsRoom();
 
       allow create: if isMember()
         && uid() in request.resource.data.viewerIds
@@ -145,7 +311,7 @@ service cloud.firestore {
         && request.resource.data.amount is int
         && request.resource.data.amount > 0;
 
-      allow update: if canSee() && changedOnly(['deleted']);
+      allow update: if (canSee() || inItsRoom()) && changedOnly(['deleted']);
       allow delete: if false;
     }
 
@@ -197,7 +363,7 @@ service cloud.firestore {
     // trustworthy: once written, a row cannot be altered or removed by anyone
     // through the app, including whoever wrote it.
     match /audit/{entryId} {
-      allow read: if canSee();
+      allow read: if canSee() || inItsRoom();
 
       allow create: if isMember()
         && request.resource.data.byUid == uid()

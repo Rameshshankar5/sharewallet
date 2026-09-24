@@ -9,7 +9,7 @@ import { Banner } from '../components/Banner';
 import { EmptyState } from '../components/EmptyState';
 
 /**
- * Three dead-ends share this screen, because each one needs the same thing:
+ * Both dead-ends share this screen, because each one needs the same thing:
  * a plain explanation and a way out, rather than a blank page or a crash.
  */
 export default function BlockedScreen() {
@@ -36,19 +36,13 @@ export default function BlockedScreen() {
     );
   }
 
-  const isDisabled = status === 'disabled';
-
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <EmptyState
           illo="locked"
-          title={isDisabled ? 'Your access is paused' : 'Waiting for access'}
-          message={
-            isDisabled
-              ? 'Your group admin has switched this account off. Ask them to turn it back on.'
-              : `You're signed in as ${user?.email ?? 'this account'}, but the admin hasn't added you to the group yet.`
-          }
+          title="Your access is paused"
+          message={`The admin has switched ${user?.email ?? 'this account'} off. Ask them to turn it back on.`}
           action={<Button label="Sign out" variant="secondary" onPress={signOut} />}
         />
       </ScrollView>

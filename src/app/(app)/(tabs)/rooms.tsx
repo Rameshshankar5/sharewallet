@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../../context/AuthContext';
@@ -18,12 +18,14 @@ import { Fab } from '../../../components/Fab';
 import { Loading } from '../../../components/Loading';
 import { Glyph } from '../../../components/Glyph';
 import { roomIcon } from '../../../components/icons';
+import { SearchBar, matches } from '../../../components/SearchBar';
 
 export default function RoomsScreen() {
   const { profile } = useAuth();
   const { rooms, expenses, settlements, loading, nameOf } = useData();
   const { c } = useTheme();
   const me = profile!.uid;
+  const [search, setSearch] = useState('');
 
   /**
    * Each room's ledger is built from that room's expenses and that room's
@@ -42,12 +44,19 @@ export default function RoomsScreen() {
     return map;
   }, [rooms, expenses, settlements, me]);
 
+  const searching = search.trim().length > 0;
+  // A room is as often remembered by who was in it as by its name.
+  const shown = searching
+    ? rooms.filter((r) => matches(search, r.name, ...r.memberIds.filter((id) => id !== me).map(nameOf)))
+    : rooms;
+
   if (loading) return <Loading label="Loading rooms…" />;
 
   return (
     <Screen>
       <FlatList
-        data={rooms}
+        data={shown}
+        keyboardShouldPersistTaps="handled"
         keyExtractor={(r) => r.id}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -57,6 +66,11 @@ export default function RoomsScreen() {
             <Text variant="small" tone="muted">
               A room is a fixed group of friends. Everyone in a room can see every expense inside it, and picking a room pre-selects everybody.
             </Text>
+            {rooms.length > 0 ? (
+              <View style={styles.search}>
+                <SearchBar value={search} onChange={setSearch} placeholder="Search rooms or people in them" />
+              </View>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => {
@@ -104,14 +118,21 @@ export default function RoomsScreen() {
             </Card>
           );
         }}
-        ListEmptyComponent={
+        ListEmptyComponent={searching ? (
+          <EmptyState
+            compact
+            illo="rooms"
+            title="No rooms match"
+            message={`No room is called "${search.trim()}" or has anyone by that name in it.`}
+          />
+        ) : (
           <EmptyState
             illo="rooms"
             title="No rooms yet"
             message="Make a room for the people you split with often — a trip, a flat, a regular dinner crowd. Everyone in it sees the room's expenses."
             action={<Button label="Create a room" onPress={() => router.push('/room/new')} />}
           />
-        }
+        )}
       />
 
       {rooms.length > 0 ? (
@@ -130,4 +151,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   trailing: { alignItems: 'flex-end' },
+  search: { marginTop: space.md },
 });

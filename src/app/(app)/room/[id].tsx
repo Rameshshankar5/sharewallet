@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pencil, Plus } from 'lucide-react-native';
+import { Pencil, Plus, UserPlus } from 'lucide-react-native';
 import { useAuth } from '../../../context/AuthContext';
 import { useData } from '../../../context/DataContext';
 import { useTheme } from '../../../theme/ThemeProvider';
@@ -24,6 +24,7 @@ import { Loading } from '../../../components/Loading';
 import { Fab } from '../../../components/Fab';
 import { Glyph } from '../../../components/Glyph';
 import { roomIcon } from '../../../components/icons';
+import { shareInvite } from '../../../services/shareInvite';
 
 type Tab = 'expenses' | 'balances' | 'activity';
 
@@ -33,6 +34,7 @@ export default function RoomScreen() {
   const { rooms, expenses, settlements, audit, nameOf, loading } = useData();
   const { c } = useTheme();
   const [tab, setTab] = useState<Tab>('expenses');
+  const [inviting, setInviting] = useState(false);
 
   const me = profile!.uid;
   const room = rooms.find((r) => r.id === id);
@@ -58,6 +60,14 @@ export default function RoomScreen() {
   );
 
   if (loading) return <Loading />;
+
+  const invite = () => {
+    if (!room) return;
+    setInviting(true);
+    void shareInvite(profile!, room)
+      .catch(() => Alert.alert('Could not make the invite link', 'Check your connection and try again.'))
+      .finally(() => setInviting(false));
+  };
 
   if (!room) {
     return (
@@ -114,6 +124,18 @@ export default function RoomScreen() {
               <Text variant="caption" tone="muted">+{room.memberIds.length - 8}</Text>
             ) : null}
           </View>
+
+          {!room.archived ? (
+            <View style={styles.invite}>
+              <Button
+                label="Invite to this room"
+                icon={UserPlus}
+                variant="secondary"
+                loading={inviting}
+                onPress={invite}
+              />
+            </View>
+          ) : null}
         </Card>
 
         <SegmentedControl<Tab>
@@ -231,4 +253,5 @@ const styles = StyleSheet.create({
   },
   members: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.lg, flexWrap: 'wrap', justifyContent: 'center' },
   list: { gap: space.sm },
+  invite: { marginTop: space.md },
 });

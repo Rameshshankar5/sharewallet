@@ -9,8 +9,12 @@ Android and iOS, one codebase.
 
 ## What it does
 
-- **Every person has their own account.** Only the superadmin can create
-  accounts — nobody can sign themselves up.
+- **Every person has their own account.** People sign themselves up with an
+  email address they have to prove they own, or the superadmin creates the
+  account for them. The superadmin can see and pause every account.
+- **You only see people you are connected to.** Share your invite link; a
+  friend who taps it and accepts is connected to you. Rooms have invite links
+  too, and everyone in a room is connected to everyone else in it.
 - **Person-to-person balances.** Your running total with each individual friend,
   kept separately, plus one overall figure.
 - **Multiple payers on one expense.** Enter the full amount, then record that
@@ -68,22 +72,30 @@ Fill in `.env` with the values from step 1.4. These are not secrets — every
 Firebase client app ships them — and `firestore.rules` is what actually protects
 your data. `.env` is gitignored anyway.
 
-### 3. Publish the security rules and indexes
+### 3. Publish the security rules, indexes and invite-link site
 
 ```bash
 npm install -g firebase-tools     # one time
 firebase login
 firebase use --add                # pick your project
-firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only firestore:rules,firestore:indexes,hosting
 ```
 
 Do not skip this. Without it your database is either wide open or completely
 shut, and the app's queries will fail for want of indexes.
 
+`hosting` publishes `hosting/` to `https://<project>.web.app`, which is where
+invite links point. It also serves `/.well-known/assetlinks.json`, which is
+what lets Android open those links straight in the app. That file names the
+release signing certificate's SHA-256, so it has to change if the keystore
+ever does. iOS needs an `apple-app-site-association` file there as well, which
+needs the Apple Team ID.
+
 ### 4. Create the first superadmin by hand
 
-This is the only manual step. There is deliberately no self-service path to
-becoming an admin, because that path would be open to anyone.
+This is the only manual step. Anybody can sign themselves up, but only as a
+plain member. There is deliberately no self-service path to becoming an
+admin, because that path would be open to anyone.
 
 1. **Authentication → Users → Add user.** Enter your email and a password.
    Copy the **User UID** it creates.

@@ -21,6 +21,8 @@ import { Avatar } from '../../../components/Avatar';
 import { ChipRow } from '../../../components/ChipRow';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { DateField } from '../../../components/DateField';
+import { CalculatorButton } from '../../../components/CalculatorButton';
+import { useCalculator } from '../../../components/CalculatorSheet';
 
 type Direction = 'iPaid' | 'theyPaid';
 
@@ -54,6 +56,7 @@ export default function SettleScreen() {
     // Default to whichever way actually clears the debt.
     return seed < 0 ? 'iPaid' : 'theyPaid';
   });
+  const calc = useCalculator();
   const [amountText, setAmountText] = useState(
     params.amount ? centsToInput(Number(params.amount)) : '',
   );
@@ -128,7 +131,7 @@ export default function SettleScreen() {
       <Screen edges={['top', 'left', 'right']}>
         <AppBar title="Settle up" leading="close" />
         <View style={styles.content}>
-          <Banner tone="info" title="No one to settle with" message="Your admin needs to add friends first." />
+          <Banner tone="info" title="No one to settle with" message="Invite a friend from the Balances or Account tab first." />
         </View>
       </Screen>
     );
@@ -192,6 +195,16 @@ export default function SettleScreen() {
               inputMode="decimal"
               placeholder="0.00"
               required
+              accessory={
+                <CalculatorButton
+                  label="Work out the amount with the calculator"
+                  onPress={() => calc.open({
+                    title: 'Payment amount',
+                    initialText: amountText,
+                    onUse: setAmountText,
+                  })}
+                />
+              }
             />
 
             {suggested > 0 && amount !== suggested ? (
@@ -241,6 +254,7 @@ export default function SettleScreen() {
           <Button label="Record payment" icon={Check} onPress={save} loading={saving} disabled={!canSave} full />
         </View>
       </KeyboardAvoidingView>
+      {calc.sheet}
     </Screen>
   );
 }

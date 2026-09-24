@@ -2,7 +2,7 @@
   "expo": {
     "name": "1-1-1",
     "slug": "sharewallet",
-    "version": "1.6.0",
+    "version": "1.10.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sharewallet",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.sharewallet.app",
-      "versionCode": 13,
+      "versionCode": 17,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png"
@@ -27,6 +27,23 @@
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "sharewallet-963b7.web.app",
+              "pathPrefix": "/i/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {
@@ -64,7 +81,8 @@
           "defaultChannel": "expenses"
         }
       ],
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "./plugins/withPhoneAbisOnly"
     ],
     "experiments": {
       "typedRoutes": false,

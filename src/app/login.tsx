@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 import { AtSign, KeyRound } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useKeyboardVisible } from '../hooks/useKeyboard';
@@ -118,8 +119,14 @@ export default function LoginScreen() {
 
           <View style={[styles.note, { borderTopColor: c.border }, keyboardUp && styles.hidden]}>
             <Text variant="caption" tone="faint" center>
-              Accounts are created by your group’s admin. If you don’t have one yet, ask them to add you.
+              New here? You need an email address you can open.
             </Text>
+            <Button
+              label="Create an account"
+              variant="secondary"
+              onPress={() => router.replace('/signup')}
+              full
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -143,6 +150,6 @@ const styles = StyleSheet.create({
   tagline: { marginTop: space.xs, maxWidth: 300 },
   banner: {},
   form: { gap: space.lg },
-  note: { paddingTop: space.lg, borderTopWidth: StyleSheet.hairlineWidth },
+  note: { paddingTop: space.lg, borderTopWidth: StyleSheet.hairlineWidth, gap: space.md },
   hidden: { display: 'none' },
 });

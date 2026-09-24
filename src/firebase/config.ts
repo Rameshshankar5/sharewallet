@@ -4,8 +4,8 @@
  * These values are not secrets — they ship inside every Firebase web/mobile app
  * and are safe to expose. What actually protects your data is firestore.rules,
  * which is why those rules are written strictly: a stranger holding this config
- * still cannot read or write anything without a profile document that only the
- * superadmin can create.
+ * still cannot read or write anything without a profile document, and cannot
+ * make one without first proving they own an email address.
  */
 
 export interface FirebaseConfig {

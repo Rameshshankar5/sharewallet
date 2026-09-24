@@ -63,3 +63,6 @@ google-services.json
 # The FCM service account key is a REAL secret. It goes to Expo, never here.
 *-firebase-adminsdk-*.json
 service-account*.json
+
+# Firebase CLI deploy cache
+.firebase/

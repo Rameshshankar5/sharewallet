@@ -23,7 +23,7 @@ import { ROOM_ICONS } from '../../../components/icons';
 export default function RoomFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { profile } = useAuth();
-  const { rooms, users, nameOf } = useData();
+  const { rooms, friends, usersById, nameOf } = useData();
   const { c } = useTheme();
 
   const me = profile!.uid;
@@ -46,8 +46,15 @@ export default function RoomFormScreen() {
     setMemberIds([...existing.memberIds]);
   }, [editing, existing]);
 
-  const candidates = users
-    .filter((u) => u.active)
+  // You can add the people you are connected to. Anyone already in the room
+  // stays listed, so they can be taken out, even if they joined by link and
+  // you have never met.
+  const pool = new Map([profile!, ...friends].map((u) => [u.uid, u]));
+  (existing?.memberIds ?? []).forEach((uid) => {
+    const u = usersById[uid];
+    if (u) pool.set(uid, u);
+  });
+  const candidates = [...pool.values()]
     .sort((a, b) => (a.uid === me ? -1 : b.uid === me ? 1 : a.displayName.localeCompare(b.displayName)));
 
   const nameError = showErrors && !name.trim() ? 'Give the room a name.' : null;
@@ -156,7 +163,7 @@ export default function RoomFormScreen() {
           <View style={styles.block}>
             <SectionHeader
               title="Members"
-              hint="Everyone here can see every expense added to this room"
+              hint="Everyone here can see every expense added to this room. To add someone you are not connected to yet, save the room and use its invite link."
             />
             <View style={styles.people}>
               {candidates.map((u) => (

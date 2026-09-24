@@ -1,9 +1,10 @@
-import React from 'react';
-import { Stack } from 'expo-router';
+import React, { useEffect } from 'react';
+import { router, Stack } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Loading } from '../../components/Loading';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { takePendingInvite } from '../../lib/pendingInvite';
 
 /**
  * The gate for every signed-in screen.
@@ -18,11 +19,23 @@ import { usePushNotifications } from '../../hooks/usePushNotifications';
  * `/room/123` and the rest are unchanged by this wrapper.
  */
 export default function AppLayout() {
-  const { status, profile } = useAuth();
+  const { status, profile, user } = useAuth();
   const { c } = useTheme();
 
   // Mounted above the early return's guard so the hook order never changes.
-  usePushNotifications(status === 'ready' && profile ? profile.uid : null);
+  // Both of these talk to Firebase, so they wait for the real session rather
+  // than the saved profile the app may have opened on.
+  const signedIn = status === 'ready' && !!profile && user?.uid === profile.uid;
+  usePushNotifications(signedIn ? profile!.uid : null);
+
+  // An invite link tapped before signing in (or signing up) is answered as
+  // soon as there is somebody to answer it.
+  useEffect(() => {
+    if (!signedIn) return;
+    void takePendingInvite().then((code) => {
+      if (code) router.push(`/invite/${code}`);
+    });
+  }, [signedIn]);
 
   if (status !== 'ready' || !profile) return <Loading />;
 
@@ -41,6 +54,7 @@ export default function AppLayout() {
       <Stack.Screen name="room/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="admin/new-user" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="settings/password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="invite/[code]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
     </Stack>
   );
 }
